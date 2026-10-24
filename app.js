@@ -2,7 +2,7 @@
 const $=id=>document.getElementById(id), KEY='dekita.family.v1';
 const uid=()=>crypto.randomUUID();
 const initial=()=>({version:1,pin:null,children:[{name:'9さい',stars:0,days:{}},{name:'6さい',stars:0,days:{}}],tasks:[{id:uid(),emoji:'🪥',title:'はみがき'},{id:uid(),emoji:'👕',title:'おきがえ'},{id:uid(),emoji:'🧸',title:'おかたづけ'}],reward:'すきなおやつ',cost:10});
-function valid(s){return s&&s.version===1&&(s.pin===null||typeof s.pin==='string')&&Array.isArray(s.children)&&s.children.length===2&&s.children.every(c=>typeof c.name==='string'&&Number.isSafeInteger(c.stars)&&c.stars>=0&&(c.debt===undefined||(Number.isSafeInteger(c.debt)&&c.debt>=0))&&(c.theme===undefined||['magic','space'].includes(c.theme))&&(c.snapshots===undefined||(c.snapshots&&typeof c.snapshots==='object'&&!Array.isArray(c.snapshots)&&Object.values(c.snapshots).every(ts=>Array.isArray(ts)&&ts.length<=30&&ts.every(t=>t&&typeof t.id==='string'&&typeof t.title==='string'&&typeof t.emoji==='string'))))&&(c.notes===undefined||(c.notes&&typeof c.notes==='object'&&!Array.isArray(c.notes)&&Object.entries(c.notes).every(([k,v])=>/^\d{4}-\d{2}-\d{2}$/.test(k)&&typeof v==='string'&&v.length<=200)))&&c.days&&typeof c.days==='object'&&!Array.isArray(c.days)&&Object.values(c.days).every(d=>Array.isArray(d)&&d.every(x=>typeof x==='string')))&&Array.isArray(s.tasks)&&s.tasks.length<=60&&s.tasks.every(t=>typeof t.id==='string'&&typeof t.title==='string'&&typeof t.emoji==='string'&&(t.owner===undefined||t.owner===0||t.owner===1))&&new Set(s.tasks.map(t=>t.id)).size===s.tasks.length&&typeof s.reward==='string'&&Number.isInteger(s.cost)&&s.cost>=1&&s.cost<=999;}
+function valid(s){return s&&s.version===1&&(s.pin===null||typeof s.pin==='string')&&Array.isArray(s.children)&&s.children.length===2&&s.children.every(c=>typeof c.name==='string'&&Number.isSafeInteger(c.stars)&&c.stars>=0&&(c.debt===undefined||(Number.isSafeInteger(c.debt)&&c.debt>=0))&&(c.theme===undefined||['magic','space'].includes(c.theme))&&(c.snapshots===undefined||(c.snapshots&&typeof c.snapshots==='object'&&!Array.isArray(c.snapshots)&&Object.values(c.snapshots).every(ts=>Array.isArray(ts)&&ts.length<=30&&ts.every(t=>t&&typeof t.id==='string'&&typeof t.title==='string'&&typeof t.emoji==='string'))))&&(c.notes===undefined||(c.notes&&typeof c.notes==='object'&&!Array.isArray(c.notes)&&Object.entries(c.notes).every(([k,v])=>/^\d{4}-\d{2}-\d{2}$/.test(k)&&typeof v==='string'&&v.length<=200)))&&(c.drawings===undefined||(c.drawings&&typeof c.drawings==='object'&&!Array.isArray(c.drawings)&&Object.values(c.drawings).every(lines=>Array.isArray(lines)&&lines.flat().length<=3000&&lines.every(line=>Array.isArray(line)&&line.every(p=>Array.isArray(p)&&p.length===2&&p.every(n=>Number.isFinite(n)&&n>=0&&n<=600))))))&&c.days&&typeof c.days==='object'&&!Array.isArray(c.days)&&Object.values(c.days).every(d=>Array.isArray(d)&&d.every(x=>typeof x==='string')))&&Array.isArray(s.tasks)&&s.tasks.length<=60&&s.tasks.every(t=>typeof t.id==='string'&&typeof t.title==='string'&&typeof t.emoji==='string'&&(t.owner===undefined||t.owner===0||t.owner===1))&&new Set(s.tasks.map(t=>t.id)).size===s.tasks.length&&typeof s.reward==='string'&&Number.isInteger(s.cost)&&s.cost>=1&&s.cost<=999;}
 const eightTasks=[['👕','あさ おきてすぐ おきがえ'],['🪥','はみがき'],['🎹','ピアノの れんしゅう'],['📚','しゅくだい'],['🧸','おかたづけ']];
 function migrate(data){
  if(!data.profileRevision){
@@ -59,25 +59,14 @@ function storeReflection(text,date=viewDay()){
 }
 function renderReflection(){
  const section=$('reflection'),input=$('reflectionText'),date=viewDay(),editable=date===day();
- section.hidden=selected!==0;if(selected!==0)return;
+ section.hidden=selected!==0;if(selected!==0){if(typeof stopVoice==='function')stopVoice();return;}
  const context='0:'+date,changed=input.dataset.context!==context;
  if(changed||document.activeElement!==input){input.value=state.children[0].notes?.[date]||'';input.dataset.context=context;}
  input.readOnly=!editable;input.disabled=date>day();
  input.placeholder=date>day()?'この日になったら、ひとことを かこう。':date<day()?'この日の ひとことは まだありません。':'たのしかったこと、がんばったこと… なんでも かいてね。';
  $('reflectionTitle').textContent=editable?'きょうは どんな いちにちだった？':'この日の ひとこと';
- $('reflectionHelp').textContent=editable?'ボタンを タップするだけでも OK！ じどうで ほぞんするよ。':date>day()?'みらいの ひとことは、まだ かけないよ。':'この日に かいたことを よみかえせるよ。';
- const choices=[['😊 たのしかった','たのしかった！'],['😌 がんばった','がんばった！'],['😴 つかれた','ちょっと つかれた。'],['😢 かなしかった','かなしいことが あった。'],['🎹 ピアノ','ピアノを れんしゅうした。'],['📚 べんきょう','べんきょうを がんばった。'],['🧑‍🤝‍🧑 おともだち','おともだちと あそんだ。'],['🌈 あしたも','あしたも たのしみ！']];
- $('reflectionChoices').hidden=!editable;
- $('reflectionChoices').replaceChildren(...choices.map(([label,text])=>{
-  const b=button(label,()=>{
-   if(selected!==0||viewDay()!==day())return;
-   const current=state.children[0].notes?.[day()]||'';
-   const pieces=current.split('\n');
-   const next=pieces.includes(text)?pieces.filter(x=>x!==text).join('\n'):(current?current+'\n':'')+text;
-   if(next.length>200){$('reflectionStatus').textContent='200もじまでだよ。すこし へらしてね。';return;}
-   const ok=storeReflection(next);input.value=next;renderReflection();$('reflectionStatus').textContent=ok?'ほぞんしたよ ✓':'保存できませんでした。';
-  });b.setAttribute('aria-pressed',String((state.children[0].notes?.[date]||'').split('\n').includes(text)));return b;
- }));
+ $('reflectionHelp').textContent=editable?'すきな にゅうりょくほうほうを えらぼう。':date>day()?'みらいの ひとことは、まだ かけないよ。':'この日に かいたことを よみかえせるよ。';
+ if(typeof renderInputTools==='function')renderInputTools();
  $('reflectionCount').textContent=input.value.length+' / 200';
  if(changed)$('reflectionStatus').textContent=editable?(input.value?'保存したひとこと':'') : '';
 }
