@@ -150,6 +150,28 @@ if('serviceWorker'in navigator){navigator.serviceWorker.register('./sw.js').then
 $('reflectionText').oninput=e=>{const input=e.target;if(input.dataset.context!=='0:'+day()||selected!==0||viewDay()!==day()){renderReflection();return;}const ok=storeReflection(input.value);$('reflectionCount').textContent=input.value.length+' / 200';$('reflectionStatus').textContent=ok?'ほぞんしたよ ✓':'保存できません。文章をコピーして残してください。';};
 $('prevDay').onclick=()=>shiftDay(-1);$('nextDay').onclick=()=>shiftDay(1);$('todayButton').onclick=()=>{selectedDay=null;render();};$('dayPicker').onchange=e=>{if(/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)){selectedDay=e.target.value===day()?null:e.target.value;render();}};
 $('update').onclick=()=>pendingWorker?.postMessage('activate');
+$('refreshApp').onclick=async()=>{
+ if(!save())return;
+ const button=$('refreshApp');button.disabled=true;button.textContent='更新中…';
+ try{
+  if('serviceWorker'in navigator){
+   const registration=await navigator.serviceWorker.getRegistration();
+   if(registration){
+    await Promise.race([registration.update(),new Promise(resolve=>setTimeout(resolve,4000))]);
+    if(registration.waiting){registration.waiting.postMessage('activate');return;}
+    if(registration.installing){
+     const worker=registration.installing;
+     await Promise.race([new Promise(resolve=>{
+      const check=()=>{if(worker.state==='installed'||worker.state==='redundant')resolve();};
+      worker.addEventListener('statechange',check);check();
+     }),new Promise(resolve=>setTimeout(resolve,4000))]);
+     if(registration.waiting){registration.waiting.postMessage('activate');return;}
+    }
+   }
+  }
+ }catch(error){/* Offline refresh still loads the stored application. */}
+ const url=new URL(location.href);url.searchParams.set('refresh',String(Date.now()));location.replace(url.href);
+};
 $('soundToggle').onclick=()=>{state.soundEnabled=state.soundEnabled===false;save();renderSound();if(state.soundEnabled)playSound('check');};
 renderSound();
 render();
