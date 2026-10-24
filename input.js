@@ -43,7 +43,8 @@ function renderInputTools(){
  if(inputMode==='kana'){
   note('じぶんの ことばを 1もじずつ タップしよう。文字の位置は ← → でかえられるよ。');
   const grid=document.createElement('div');grid.className='kana-grid';
-  for(const ch of 'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもや ゆ よらりるれろわ を ん'){
+  const kanaRows=['あいうえお','かきくけこ','さしすせそ','たちつてと','なにぬねの','はひふへほ','まみむめも','や ゆ よ','らりるれろ','わ を ん'];
+  for(let vowel=0;vowel<5;vowel++)for(const row of kanaRows){const ch=row[vowel];
    if(ch===' '){grid.append(document.createElement('span'));continue;}
    grid.append(button(ch,()=>insertKana(ch)));
   }tools.append(grid);
@@ -63,16 +64,16 @@ function renderInputTools(){
 function renderDrawing(container,editable){
  const date=viewDay(),child=state.children[0];let strokes=structuredClone(child.drawings?.[date]||[]);
  if(!editable&&!strokes.length)return;
- const canvas=document.createElement('canvas');canvas.width=600;canvas.height=240;canvas.className='handwriting';canvas.setAttribute('aria-label','手書き欄。指やペンで書けます');container.append(canvas);
+ const canvas=document.createElement('canvas');canvas.width=600;canvas.height=360;canvas.className='handwriting';canvas.setAttribute('aria-label','手書き欄。指やペンで書けます');container.append(canvas);
  const ctx=canvas.getContext('2d');ctx.lineWidth=4;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#704b79';
- function redraw(){ctx.clearRect(0,0,600,240);for(const line of strokes){ctx.beginPath();line.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));if(line.length===1){ctx.lineTo(line[0][0]+.1,line[0][1]+.1);}ctx.stroke();}}
+ function redraw(){ctx.clearRect(0,0,600,360);for(const line of strokes){ctx.beginPath();line.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));if(line.length===1){ctx.lineTo(line[0][0]+.1,line[0][1]+.1);}ctx.stroke();}}
  redraw();if(!editable)return;
  let active=null,pointer=null;
- function point(e){const r=canvas.getBoundingClientRect();return [Math.max(0,Math.min(600,(e.clientX-r.left)*600/r.width)),Math.max(0,Math.min(240,(e.clientY-r.top)*240/r.height))];}
+ function point(e){const r=canvas.getBoundingClientRect();return [Math.max(0,Math.min(600,(e.clientX-r.left)*600/r.width)),Math.max(0,Math.min(360,(e.clientY-r.top)*360/r.height))];}
  function persist(){if(selected!==0||date!==day()||viewDay()!==date)return;child.drawings||={};if(strokes.length)child.drawings[date]=strokes;else delete child.drawings[date];const ok=save();$('reflectionStatus').textContent=ok?'てがきを ほぞんしたよ ✓':'保存できませんでした。';}
- canvas.onpointerdown=e=>{if(selected!==0||viewDay()!==day())return;if(strokes.flat().length>=3000){$('reflectionStatus').textContent='この日の手書きがいっぱいです。少し消してください。';return;}pointer=e.pointerId;canvas.setPointerCapture(pointer);active=[point(e)];strokes.push(active);redraw();};
- canvas.onpointermove=e=>{if(!active||pointer!==e.pointerId)return;if(strokes.flat().length<3000)active.push(point(e));redraw();};
+ canvas.onpointerdown=e=>{e.preventDefault();if(active||selected!==0||viewDay()!==day())return;if(strokes.flat().length>=3000){$('reflectionStatus').textContent='この日の手書きがいっぱいです。少し消してください。';return;}pointer=e.pointerId;canvas.setPointerCapture(pointer);active=[point(e)];strokes.push(active);redraw();};
+ canvas.onpointermove=e=>{e.preventDefault();if(!active||pointer!==e.pointerId)return;if(strokes.flat().length<3000)active.push(point(e));redraw();};
  canvas.onpointerup=canvas.onpointercancel=e=>{if(e.pointerId!==pointer)return;active=null;pointer=null;persist();};
- const undo=button('ひとふで もどす',()=>{strokes.pop();redraw();persist();});container.append(undo);
+ const undo=button('ひとふで もどす',()=>{strokes.pop();redraw();persist();});container.append(undo,button('てがきを ほぞん',persist));
 }
 renderReflection();
