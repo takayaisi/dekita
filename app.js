@@ -88,16 +88,25 @@ function renderHistory(){
  const keys=[...new Set([...Object.keys(c.days),...Object.keys(c.snapshots||{}),...Object.keys(c.notes||{}),...Object.keys(c.drawings||{})])].filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)&&d<=day()).sort().reverse();
  const dates=all?keys:keys.slice(0,30);
  $('historyTitle').textContent=c.name+'の まいにちの きろく';
- $('historyList').replaceChildren(...dates.map(d=>{
-  const ids=c.days[d]||[],tasks=c.snapshots?.[d]||state.tasks.filter(t=>t.owner===selected),done=tasks.filter(t=>ids.includes(t.id));
-  const article=document.createElement('article');article.className='history-item';
-  article.append(button(dateObject(d).toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'short'})+'　'+(done.length===tasks.length&&tasks.length?'🌟 ':'')+done.length+' / '+tasks.length+' できた',()=>{selectedDay=d===day()?null:d;switchView('today');$('greeting').scrollIntoView({behavior:'smooth',block:'start'});}));
-  const list=document.createElement('p');list.textContent=done.length?done.map(t=>t.emoji+' '+t.title).join(' ／ '):'チェックは まだありません';article.append(list);
-  if(c.notes?.[d]){const note=document.createElement('p');note.className='history-note';note.textContent='📖 '+c.notes[d];article.append(note);}
-  if(c.drawings?.[d]?.length){const note=document.createElement('small');note.textContent='✍ 保存された手書きあり（日付を押すと確認できます）';article.append(note);}
-  return article;
- }));
- if(!dates.length)$('historyList').textContent='きろくは これから ふえていくよ。';
+ const host=$('historyList');host.replaceChildren();
+ if(!dates.length){host.textContent='きろくは これから ふえていくよ。';return;}
+ const taskMap=new Map(state.tasks.filter(t=>t.owner===selected).map(t=>[t.id,t]));
+ for(const d of dates)for(const t of c.snapshots?.[d]||[])if(!taskMap.has(t.id))taskMap.set(t.id,t);
+ const columns=[...taskMap.values()];
+ const hint=document.createElement('p');hint.className='history-legend';hint.textContent='○ できた　× まだ　— その日の対象外・記録なし。表は左右に動かせます。';
+ const wrap=document.createElement('div');wrap.className='history-table-wrap';wrap.tabIndex=0;wrap.setAttribute('role','region');wrap.setAttribute('aria-label','日別の達成一覧表。左右にスクロールできます');
+ const table=document.createElement('table');table.className='history-table';const caption=document.createElement('caption');caption.textContent=c.name+'の 日べつチェックと ひとこと';table.append(caption);
+ const head=document.createElement('thead'),header=document.createElement('tr');
+ for(const label of ['ひづけ',...columns.map(t=>t.emoji+' '+t.title),'できた かず',...(selected===0?['📖 その日の ひとこと']:[])]){const cell=document.createElement('th');cell.scope='col';cell.textContent=label;header.append(cell);}head.append(header);table.append(head);
+ const body=document.createElement('tbody');
+ for(const d of dates){
+  const row=document.createElement('tr'),dateCell=document.createElement('th');dateCell.scope='row';dateCell.append(button(dateObject(d).toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'short'}),()=>{selectedDay=d===day()?null:d;switchView('today');}));row.append(dateCell);
+  const known=!!c.snapshots?.[d]||Object.hasOwn(c.days,d),tasks=c.snapshots?.[d]||state.tasks.filter(t=>t.owner===selected),ids=c.days[d]||[];
+  for(const t of columns){const included=known&&tasks.some(x=>x.id===t.id),yes=included&&ids.includes(t.id),cell=document.createElement('td');cell.textContent=included?(yes?'○':'×'):'—';cell.className='result '+(included?(yes?'yes':'no'):'na');cell.setAttribute('aria-label',t.title+'：'+(included?(yes?'できた':'まだ'):'対象外または記録なし'));row.append(cell);}
+  const count=document.createElement('td');count.textContent=known?tasks.filter(t=>ids.includes(t.id)).length+' / '+tasks.length:'—';row.append(count);
+  if(selected===0){const note=document.createElement('td');note.className='table-note';note.textContent=c.notes?.[d]||'—';row.append(note);}body.append(row);
+ }
+ table.append(body);wrap.append(table);host.append(hint,wrap);
 }
 function showTreasure(reward=false){
  let modal=$('treasureModal');if(!modal){modal=document.createElement('dialog');modal.id='treasureModal';document.body.append(modal);}
@@ -131,6 +140,7 @@ function render(){const tasks=tasksFor(),child=state.children[selected],done=chi
  treasure.replaceChildren();const gift=document.createElement('div');gift.className='treasure-icon';gift.textContent=completeToday?sticker:'🎁';const title=document.createElement('strong');title.textContent=viewDay()>day()?'この日も おたからを めざそう！':completeToday?'この日の おたから ゲット！':'ぜんぶ できたら おたからが ひらくよ';const note=document.createElement('p');note.textContent=completeToday?`はなまる ${medals}にち！ あしたは なにが でるかな？`:'まいにち ちがう シールが もらえるよ';treasure.append(gift,title,note);const open=button(completeToday?'🎁 おたからを ひらく':'あと '+Math.max(0,tasks.length-count)+' こで オープン！',()=>showTreasure());open.disabled=!completeToday;open.className='open-treasure';treasure.append(open);
  $('rewardTitle').textContent=state.reward;$('rewardStatus').textContent=child.stars>=state.cost?'⭐ こうかんできるよ！ おうちのひとに みせよう':`あと ⭐ ${state.cost-child.stars} こで ごほうび！`;}
 let audioContext;
+let kanaSoundIndex=0;
 function playSound(kind){
  if(state.soundEnabled===false)return;
  try{
@@ -139,10 +149,11 @@ function playSound(kind){
   const ctx=audioContext;
   const play=()=>{
    const magic=state.children[selected].theme!=='space';
-   const notes=kind==='undo'?[783.99,659.25]:kind==='all'?(magic?[783.99,987.77,1174.66,987.77,1567.98]:[659.25,783.99,987.77,1174.66,1318.51]):(magic?[1046.5,1318.51,1567.98]:[987.77,1174.66,1479.98]);
+   const kanaNotes=[784,1046.5,880,1318.51,987.77,1174.66,1567.98,1396.91];
+   const notes=kind==='kana'?[kanaNotes[(kanaSoundIndex++)%kanaNotes.length]]:kind==='undo'?[783.99,659.25]:kind==='all'?(magic?[783.99,987.77,1174.66,987.77,1567.98]:[659.25,783.99,987.77,1174.66,1318.51]):(magic?[1046.5,1318.51,1567.98]:[987.77,1174.66,1479.98]);
    const start=ctx.currentTime+.02;
    notes.forEach((frequency,i)=>{
-    const t=start+i*(kind==='all'?.17:.11),duration=kind==='undo'?.22:.52;
+    const t=start+i*(kind==='all'?.17:.11),duration=kind==='kana'?.24:kind==='undo'?.22:.52;
     // Rounded bell tone with a quiet octave shimmer and a soft, fading echo.
     for(const [ratio,volume,delay] of [[1,.033,0],[2,.006,0],[1,.006,.085]]){
      const osc=ctx.createOscillator(),gain=ctx.createGain(),at=t+delay;

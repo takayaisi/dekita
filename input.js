@@ -8,7 +8,7 @@ function insertKana(text,back=false){
  const value=field.value.slice(0,start)+(back?'':text)+field.value.slice(b);
  if(value.length>200)return;
  field.value=value;field.setSelectionRange(start+(back?0:text.length),start+(back?0:text.length));
- const ok=storeReflection(value);$('reflectionCount').textContent=value.length+' / 200';$('reflectionStatus').textContent=ok?'ほぞんしたよ ✓':'保存できませんでした。';
+ const ok=storeReflection(value);if(ok&&typeof playSound==='function')playSound('kana');$('reflectionCount').textContent=value.length+' / 200';$('reflectionStatus').textContent=ok?'ほぞんしたよ ✓':'保存できませんでした。';
 }
 function transformKana(kind){
  const field=$('reflectionText'),p=field.selectionStart;if(!p)return;
