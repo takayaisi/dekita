@@ -86,6 +86,28 @@ function render(){const tasks=tasksFor(),child=state.children[selected],done=chi
  const medals=Object.values(child.days).filter(ids=>tasks.length&&tasks.every(t=>ids.includes(t.id))).length;
  treasure.replaceChildren();const gift=document.createElement('div');gift.className='treasure-icon';gift.textContent=completeToday?sticker:'🎁';const title=document.createElement('strong');title.textContent=viewDay()>day()?'この日も おたからを めざそう！':completeToday?'この日の おたから ゲット！':'ぜんぶ できたら おたからが ひらくよ';const note=document.createElement('p');note.textContent=completeToday?`はなまる ${medals}にち！ あしたは なにが でるかな？`:'まいにち ちがう シールが もらえるよ';treasure.append(gift,title,note);
  $('rewardTitle').textContent=state.reward;$('rewardStatus').textContent=child.stars>=state.cost?'⭐ こうかんできるよ！ おうちのひとに みせよう':`あと ⭐ ${state.cost-child.stars} こで ごほうび！`;}
+let audioContext;
+function playSound(kind){
+ if(state.soundEnabled===false)return;
+ try{
+  const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio)return;
+  audioContext||=new Audio();
+  const ctx=audioContext;
+  const play=()=>{
+   const magic=state.children[selected].theme!=='space';
+   const notes=kind==='undo'?[440,330]:kind==='all'?(magic?[523.25,659.25,783.99,1046.5]:[392,523.25,659.25,783.99,1046.5]):(magic?[659.25,987.77]:[523.25,783.99]);
+   const start=ctx.currentTime+.02;
+   notes.forEach((frequency,i)=>{
+    const osc=ctx.createOscillator(),gain=ctx.createGain(),t=start+i*(kind==='all'?.13:.09),duration=kind==='all'?.3:.17;
+    osc.type=magic?'sine':'triangle';osc.frequency.setValueAtTime(frequency,t);
+    gain.gain.setValueAtTime(0,t);gain.gain.linearRampToValueAtTime(.045,t+.012);gain.gain.exponentialRampToValueAtTime(.0001,t+duration);
+    osc.connect(gain);gain.connect(ctx.destination);osc.start(t);osc.stop(t+duration+.02);
+   });
+  };
+  if(ctx.state==='suspended')ctx.resume().then(play).catch(()=>{});else play();
+ }catch(error){/* Audio support must not affect saving a check. */}
+}
+function renderSound(){const enabled=state.soundEnabled!==false;$('soundToggle').textContent=enabled?'🔊 音':'🔇 音';$('soundToggle').setAttribute('aria-pressed',String(enabled));$('soundToggle').setAttribute('aria-label',enabled?'音をオフにする':'音をオンにする');}
 function complete(id){
  if(viewDay()!==day())return;
  snapshotToday();
@@ -101,8 +123,8 @@ function complete(id){
   if(c.debt)c.debt--;else c.stars++;
  }
  save();render();
- if(checked)$('cheer').textContent='チェックを とりけしたよ。まちがえても だいじょうぶ！';
- else celebrate(tasks.length>0&&tasks.every(t=>c.days[d].includes(t.id)));
+ if(checked){$('cheer').textContent='チェックを とりけしたよ。まちがえても だいじょうぶ！';playSound('undo');}
+ else {const all=tasks.length>0&&tasks.every(t=>c.days[d].includes(t.id));celebrate(all);playSound(all?'all':'check');}
 }
 async function hash(pin){const bytes=new TextEncoder().encode('dekita-parent:'+pin);return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(x=>x.toString(16).padStart(2,'0')).join('');}
 $('settings').onclick=()=>{unlocked=false;$('editor').hidden=true;$('gate').hidden=false;$('pin').value='';$('gateError').textContent='';$('gateHint').textContent=state.pin?'親用の暗証番号を入力してください。':'最初に親用の4けたの暗証番号を決めてください。';$('parent').showModal();};
@@ -123,5 +145,7 @@ if('serviceWorker'in navigator){navigator.serviceWorker.register('./sw.js').then
 $('reflectionText').oninput=e=>{const input=e.target;if(input.dataset.context!=='0:'+day()||selected!==0||viewDay()!==day()){renderReflection();return;}const ok=storeReflection(input.value);$('reflectionCount').textContent=input.value.length+' / 200';$('reflectionStatus').textContent=ok?'ほぞんしたよ ✓':'保存できません。文章をコピーして残してください。';};
 $('prevDay').onclick=()=>shiftDay(-1);$('nextDay').onclick=()=>shiftDay(1);$('todayButton').onclick=()=>{selectedDay=null;render();};$('dayPicker').onchange=e=>{if(/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)){selectedDay=e.target.value===day()?null:e.target.value;render();}};
 $('update').onclick=()=>pendingWorker?.postMessage('activate');
+$('soundToggle').onclick=()=>{state.soundEnabled=state.soundEnabled===false;save();renderSound();if(state.soundEnabled)playSound('check');};
+renderSound();
 render();
 save();
