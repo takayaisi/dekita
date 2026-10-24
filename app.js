@@ -2,9 +2,17 @@
 const $=id=>document.getElementById(id), KEY='dekita.family.v1';
 const uid=()=>crypto.randomUUID();
 const initial=()=>({version:1,pin:null,children:[{name:'9さい',stars:0,days:{}},{name:'6さい',stars:0,days:{}}],tasks:[{id:uid(),emoji:'🪥',title:'はみがき'},{id:uid(),emoji:'👕',title:'おきがえ'},{id:uid(),emoji:'🧸',title:'おかたづけ'}],reward:'すきなおやつ',cost:10});
-function valid(s){return s&&s.version===1&&(s.pin===null||typeof s.pin==='string')&&Array.isArray(s.children)&&s.children.length===2&&s.children.every(c=>typeof c.name==='string'&&Number.isSafeInteger(c.stars)&&c.stars>=0&&(c.debt===undefined||(Number.isSafeInteger(c.debt)&&c.debt>=0))&&(c.theme===undefined||['magic','space'].includes(c.theme))&&(c.snapshots===undefined||(c.snapshots&&typeof c.snapshots==='object'&&!Array.isArray(c.snapshots)&&Object.values(c.snapshots).every(ts=>Array.isArray(ts)&&ts.length<=30&&ts.every(t=>t&&typeof t.id==='string'&&typeof t.title==='string'&&typeof t.emoji==='string'))))&&(c.notes===undefined||(c.notes&&typeof c.notes==='object'&&!Array.isArray(c.notes)&&Object.entries(c.notes).every(([k,v])=>/^\d{4}-\d{2}-\d{2}$/.test(k)&&typeof v==='string'&&v.length<=200)))&&(c.drawings===undefined||(c.drawings&&typeof c.drawings==='object'&&!Array.isArray(c.drawings)&&Object.values(c.drawings).every(lines=>Array.isArray(lines)&&lines.flat().length<=3000&&lines.every(line=>Array.isArray(line)&&line.every(p=>Array.isArray(p)&&p.length===2&&p.every(n=>Number.isFinite(n)&&n>=0&&n<=600))))))&&c.days&&typeof c.days==='object'&&!Array.isArray(c.days)&&Object.values(c.days).every(d=>Array.isArray(d)&&d.every(x=>typeof x==='string')))&&Array.isArray(s.tasks)&&s.tasks.length<=60&&s.tasks.every(t=>typeof t.id==='string'&&typeof t.title==='string'&&typeof t.emoji==='string'&&(t.owner===undefined||t.owner===0||t.owner===1))&&new Set(s.tasks.map(t=>t.id)).size===s.tasks.length&&typeof s.reward==='string'&&Number.isInteger(s.cost)&&s.cost>=1&&s.cost<=999;}
+function valid(s){return s&&s.version===1&&(s.pin===null||typeof s.pin==='string')&&Array.isArray(s.children)&&s.children.length===2&&s.children.every(c=>typeof c.name==='string'&&Number.isSafeInteger(c.stars)&&c.stars>=0&&(c.debt===undefined||(Number.isSafeInteger(c.debt)&&c.debt>=0))&&(c.theme===undefined||['magic','space'].includes(c.theme))&&(c.snapshots===undefined||(c.snapshots&&typeof c.snapshots==='object'&&!Array.isArray(c.snapshots)&&Object.values(c.snapshots).every(ts=>Array.isArray(ts)&&ts.length<=30&&ts.every(t=>t&&typeof t.id==='string'&&typeof t.title==='string'&&typeof t.emoji==='string'))))&&(c.notes===undefined||(c.notes&&typeof c.notes==='object'&&!Array.isArray(c.notes)&&Object.entries(c.notes).every(([k,v])=>/^\d{4}-\d{2}-\d{2}$/.test(k)&&typeof v==='string'&&v.length<=200)))&&(c.drawings===undefined||(c.drawings&&typeof c.drawings==='object'&&!Array.isArray(c.drawings)&&Object.values(c.drawings).every(lines=>Array.isArray(lines)&&lines.flat().length<=3000&&lines.every(line=>Array.isArray(line)&&line.every(p=>Array.isArray(p)&&p.length===2&&p.every(n=>Number.isFinite(n)&&n>=0&&n<=600))))))&&(c.pokemon===undefined||(c.pokemon&&typeof c.pokemon==='object'&&!Array.isArray(c.pokemon)&&Object.entries(c.pokemon).every(([d,id])=>/^\d{4}-\d{2}-\d{2}$/.test(d)&&Number.isInteger(id)&&id>=1&&id<=151)))&&c.days&&typeof c.days==='object'&&!Array.isArray(c.days)&&Object.values(c.days).every(d=>Array.isArray(d)&&d.every(x=>typeof x==='string')))&&Array.isArray(s.tasks)&&s.tasks.length<=60&&s.tasks.every(t=>typeof t.id==='string'&&typeof t.title==='string'&&typeof t.emoji==='string'&&(t.owner===undefined||t.owner===0||t.owner===1))&&new Set(s.tasks.map(t=>t.id)).size===s.tasks.length&&typeof s.reward==='string'&&Number.isInteger(s.cost)&&s.cost>=1&&s.cost<=999;}
 const eightTasks=[['👕','あさ おきてすぐ おきがえ'],['🪥','はみがき'],['🎹','ピアノの れんしゅう'],['📚','しゅくだい'],['🧸','おかたづけ']];
 function addYoungerPiano(data){
+ if(!data.familyMealRevision){
+  for(let owner=0;owner<2;owner++)if(!data.tasks.some(t=>t.owner===owner&&t.title.includes('ごはん'))){
+   const task={id:uid(),title:'ごはんを のこさず たべる',emoji:'🍚',owner};data.tasks.push(task);
+   const snapshot=data.children[owner].snapshots?.[day()];if(snapshot)snapshot.push(structuredClone(task));
+  }
+  data.familyMealRevision=1;
+ }
+
  if(!data.youngerBedtimeRevision){
   if(!data.tasks.some(t=>t.owner===1&&t.title.includes('おしっこ'))){
    const task={id:uid(),title:'ねるまえに おしっこ',emoji:'🚽',owner:1};data.tasks.push(task);
@@ -97,28 +105,41 @@ function renderHistory(){
  const wrap=document.createElement('div');wrap.className='history-table-wrap';wrap.tabIndex=0;wrap.setAttribute('role','region');wrap.setAttribute('aria-label','日別の達成一覧表。左右にスクロールできます');
  const table=document.createElement('table');table.className='history-table';const caption=document.createElement('caption');caption.textContent=c.name+'の 日べつチェックと ひとこと';table.append(caption);
  const head=document.createElement('thead'),header=document.createElement('tr');
- for(const label of ['ひづけ',...columns.map(t=>t.emoji+' '+t.title),'できた かず',...(selected===0?['📖 その日の ひとこと']:[])]){const cell=document.createElement('th');cell.scope='col';cell.textContent=label;header.append(cell);}head.append(header);table.append(head);
+ for(const label of ['ひづけ',...columns.map(t=>t.emoji+' '+t.title),'できた かず','🎁 おたから',...(selected===0?['📖 その日の ひとこと']:[])]){const cell=document.createElement('th');cell.scope='col';cell.textContent=label;header.append(cell);}head.append(header);table.append(head);
  const body=document.createElement('tbody');
  for(const d of dates){
   const row=document.createElement('tr'),dateCell=document.createElement('th');dateCell.scope='row';dateCell.append(button(dateObject(d).toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'short'}),()=>{selectedDay=d===day()?null:d;switchView('today');}));row.append(dateCell);
   const known=!!c.snapshots?.[d]||Object.hasOwn(c.days,d),tasks=c.snapshots?.[d]||state.tasks.filter(t=>t.owner===selected),ids=c.days[d]||[];
   for(const t of columns){const included=known&&tasks.some(x=>x.id===t.id),yes=included&&ids.includes(t.id),cell=document.createElement('td');cell.textContent=included?(yes?'○':'×'):'—';cell.className='result '+(included?(yes?'yes':'no'):'na');cell.setAttribute('aria-label',t.title+'：'+(included?(yes?'できた':'まだ'):'対象外または記録なし'));row.append(cell);}
   const count=document.createElement('td');count.textContent=known?tasks.filter(t=>ids.includes(t.id)).length+' / '+tasks.length:'—';row.append(count);
+  const treasureCell=document.createElement('td'),earned=dailyPokemon(selected,d);if(earned){const img=document.createElement('img');img.src=earned.image;img.alt='';img.className='history-pokemon';const name=document.createElement('span');name.textContent=earned.name;treasureCell.append(img,name);}else treasureCell.textContent='—';row.append(treasureCell);
   if(selected===0){const note=document.createElement('td');note.className='table-note';note.textContent=c.notes?.[d]||'—';row.append(note);}body.append(row);
  }
  table.append(body);wrap.append(table);host.append(hint,wrap);
 }
+function dailyPokemon(childIndex,date,draw=false){
+ const child=state.children[childIndex],pool=typeof POKEMON_TREASURES==='undefined'?[]:POKEMON_TREASURES;
+ let id=child.pokemon?.[date];
+ if(!id&&draw&&date<=day()){
+  const tasks=child.snapshots?.[date]||state.tasks.filter(t=>t.owner===childIndex),done=child.days[date]||[];
+  if(!pool.length||!tasks.length||!tasks.every(t=>done.includes(t.id)))return null;
+  id=pool[Math.floor(Math.random()*pool.length)].id;child.pokemon||={};child.pokemon[date]=id;save();
+ }
+ return pool.find(p=>p.id===id)||null;
+}
 function showTreasure(reward=false){
- let modal=$('treasureModal');if(!modal){modal=document.createElement('dialog');modal.id='treasureModal';document.body.append(modal);}
- modal.replaceChildren();const box=document.createElement('div');box.className='treasure-party';
- const heading=document.createElement('h2');heading.textContent=reward?'🎉 ごほうびと こうかん！':'ぜんぶ できた！ すごい！';
+ const pokemon=reward?null:dailyPokemon(selected,viewDay(),true);if(!reward&&!pokemon)return;
+ render();let modal=$('treasureModal');if(!modal){modal=document.createElement('dialog');modal.id='treasureModal';document.body.append(modal);}
+ modal.replaceChildren();modal.className=reward?'':'pokemon-reveal';const box=document.createElement('div');box.className='treasure-party';
+ const heading=document.createElement('h2');heading.textContent=reward?'🎉 ごほうびと こうかん！':'✨ だれが でてくるかな？ ✨';
  const chest=document.createElement('div');chest.className='opening-chest';chest.textContent='🎁';
+ const burst=document.createElement('div');burst.className='pokemon-burst';burst.setAttribute('aria-hidden','true');
  const item=document.createElement('div');item.className='treasure-prize';
- const symbols=state.children[selected].theme==='space'?['🚀','🪐','🛸','🌠','🌍','👨‍🚀','☄️']:['🦄','🦋','🌷','👑','🌈','🧚','💎'];
- const d=dateObject(viewDay());item.textContent=reward?'🏆':symbols[Math.floor(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())/86400000)%7];
- const caption=document.createElement('p');caption.className='prize-caption';caption.textContent=reward?state.reward:'きょうの おたからシール！';
- const encouragement=document.createElement('p');encouragement.textContent=reward?'おうちのひとから ごほうびを もらおう！':'ひとつずつ がんばった きみに はなまる！';
- box.append(heading,chest,item,caption,encouragement,button('やったー！',()=>modal.close(),'primary'));modal.append(box);modal.showModal();celebrate(true);playSound('all');
+ if(pokemon){const img=document.createElement('img');img.src=pokemon.image;img.alt=pokemon.name;img.className='pokemon-art';item.append(img);}else item.textContent='🏆';
+ const caption=document.createElement('p');caption.className='prize-caption';caption.textContent=reward?state.reward:pokemon.name+' が あらわれた！';
+ const encouragement=document.createElement('p');encouragement.textContent=reward?'おうちのひとから ごほうびを もらおう！':'ぜんぶ がんばったね！ このポケモンが きょうの おたから！';
+ const credit=document.createElement('small');credit.className='pokemon-credit';credit.textContent='ポケモン画像・名前：PokéAPI / Pokémon ©各権利者';
+ box.append(heading,chest,burst,item,caption,encouragement,button('やったー！',()=>modal.close(),'primary'));if(pokemon)box.append(credit);modal.append(box);modal.showModal();celebrate(true);playSound('all');
 }
 function celebrate(all){
  const tray=document.createElement('div');tray.className='celebration';tray.setAttribute('aria-hidden','true');
@@ -135,9 +156,9 @@ function day(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth
 function button(text,fn,cls){const b=document.createElement('button');b.type='button';b.textContent=text;if(cls)b.className=cls;b.onclick=fn;return b;}
 function render(){const tasks=tasksFor(),child=state.children[selected],done=child.days[viewDay()]||[],count=tasks.filter(t=>done.includes(t.id)).length;document.body.dataset.theme=child.theme||'magic';document.querySelector('.garden').setAttribute('aria-label',child.theme==='space'?'ぼうけんの うちゅう':'まほうの おにわ');document.querySelector('.flower').textContent=child.theme==='space'?'✨ 🪐 ✨':'🌷 🌸 🌷';$('profiles').replaceChildren(...state.children.map((c,i)=>{const b=button(`${c.theme==='space'?'🚀':'🦄'} ${c.name}`,()=>{selected=i;render();});b.setAttribute('aria-pressed',String(i===selected));return b;}));snapshotToday();renderCalendar();renderReflection();renderHistory();$('date').textContent=dateObject(viewDay()).toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'long'});$('greeting').textContent=`${child.name}の ${viewDay()===day()?'きょう':viewDay()>day()?'よてい':'きろく'}`;$('balance').textContent=`⭐ ${child.stars} こ`;$('tree').textContent=child.theme==='space'?(child.stars>=20?'🛸':child.stars>=5?'🚀':'🌍'):(child.stars>=20?'🏰':child.stars>=5?'🦄':'🌸');$('progressText').textContent=`${count} / ${tasks.length} できた`;$('progress').max=Math.max(1,tasks.length);$('progress').value=count;$('progress').setAttribute('aria-label','今日のできた数');$('tasks').replaceChildren(...tasks.map(t=>{const yes=done.includes(t.id),b=button('',()=>complete(t.id),'task'+(yes?' done':''));for(const [cls,text]of [['emoji',t.emoji],['title',t.title],['check',yes?'✓':'']]){const span=document.createElement('span');span.className=cls;span.textContent=text;b.append(span);}b.disabled=viewDay()!==day();b.setAttribute('aria-pressed',String(yes));b.setAttribute('aria-label',`${t.title}、${viewDay()!==day()?(yes?'できた':'チェックなし'):yes?'できた。もういちど押すと取り消し':'タップでできた'}`);return b;}));$('cheer').textContent=count&&count===tasks.length?'🎉 ぜんぶ できたね！ はなまる！':tasks.length?'ひとつずつ、じぶんのペースで。':'おうちのひとに やることを いれてもらおう';let treasure=$('dailyTreasure');if(!treasure){treasure=document.createElement('div');treasure.id='dailyTreasure';treasure.className='daily-treasure';$('cheer').after(treasure);}
  const completeToday=tasks.length>0&&count===tasks.length;
- const sticker=(child.theme==='space'?['🚀','🪐','🛸','🌠','🌍','👨‍🚀','☄️']:['🦄','🦋','🌷','👑','🌈','🧚','💎'])[Math.floor(Date.UTC(dateObject(viewDay()).getFullYear(),dateObject(viewDay()).getMonth(),dateObject(viewDay()).getDate())/86400000)%7];
+ const pokemon=dailyPokemon(selected,viewDay());
  const medals=Object.values(child.days).filter(ids=>tasks.length&&tasks.every(t=>ids.includes(t.id))).length;
- treasure.replaceChildren();const gift=document.createElement('div');gift.className='treasure-icon';gift.textContent=completeToday?sticker:'🎁';const title=document.createElement('strong');title.textContent=viewDay()>day()?'この日も おたからを めざそう！':completeToday?'この日の おたから ゲット！':'ぜんぶ できたら おたからが ひらくよ';const note=document.createElement('p');note.textContent=completeToday?`はなまる ${medals}にち！ あしたは なにが でるかな？`:'まいにち ちがう シールが もらえるよ';treasure.append(gift,title,note);const open=button(completeToday?'🎁 おたからを ひらく':'あと '+Math.max(0,tasks.length-count)+' こで オープン！',()=>showTreasure());open.disabled=!completeToday;open.className='open-treasure';treasure.append(open);
+ treasure.replaceChildren();const gift=document.createElement('div');gift.className='treasure-icon';if(completeToday&&pokemon){const img=document.createElement('img');img.src=pokemon.image;img.alt=pokemon.name;img.className='treasure-thumb';gift.append(img);}else gift.textContent='🎁';const title=document.createElement('strong');title.textContent=viewDay()>day()?'この日も おたからを めざそう！':completeToday?(pokemon?pokemon.name+' を ゲット！':'ポケモンの たからばこ！'):'ぜんぶ できたら おたからが ひらくよ';const note=document.createElement('p');note.textContent=completeToday?`はなまる ${medals}にち！ あしたは なにが でるかな？`:'151しゅるいから ランダム！ なにが でるかな？';treasure.append(gift,title,note);const open=button(completeToday?'🎁 おたからを ひらく':'あと '+Math.max(0,tasks.length-count)+' こで オープン！',()=>showTreasure());open.disabled=!completeToday;open.className='open-treasure';treasure.append(open);
  $('rewardTitle').textContent=state.reward;$('rewardStatus').textContent=child.stars>=state.cost?'⭐ こうかんできるよ！ おうちのひとに みせよう':`あと ⭐ ${state.cost-child.stars} こで ごほうび！`;}
 let audioContext;
 let kanaSoundIndex=0;
