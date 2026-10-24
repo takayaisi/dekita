@@ -4,6 +4,11 @@ const uid=()=>crypto.randomUUID();
 const initial=()=>({version:1,pin:null,children:[{name:'9さい',stars:0,days:{}},{name:'6さい',stars:0,days:{}}],tasks:[{id:uid(),emoji:'🪥',title:'はみがき'},{id:uid(),emoji:'👕',title:'おきがえ'},{id:uid(),emoji:'🧸',title:'おかたづけ'}],reward:'すきなおやつ',cost:10});
 function valid(s){return s&&s.version===1&&(s.pin===null||typeof s.pin==='string')&&Array.isArray(s.children)&&s.children.length===2&&s.children.every(c=>typeof c.name==='string'&&Number.isSafeInteger(c.stars)&&c.stars>=0&&(c.debt===undefined||(Number.isSafeInteger(c.debt)&&c.debt>=0))&&(c.theme===undefined||['magic','space'].includes(c.theme))&&(c.snapshots===undefined||(c.snapshots&&typeof c.snapshots==='object'&&!Array.isArray(c.snapshots)&&Object.values(c.snapshots).every(ts=>Array.isArray(ts)&&ts.length<=30&&ts.every(t=>t&&typeof t.id==='string'&&typeof t.title==='string'&&typeof t.emoji==='string'))))&&(c.notes===undefined||(c.notes&&typeof c.notes==='object'&&!Array.isArray(c.notes)&&Object.entries(c.notes).every(([k,v])=>/^\d{4}-\d{2}-\d{2}$/.test(k)&&typeof v==='string'&&v.length<=200)))&&(c.drawings===undefined||(c.drawings&&typeof c.drawings==='object'&&!Array.isArray(c.drawings)&&Object.values(c.drawings).every(lines=>Array.isArray(lines)&&lines.flat().length<=3000&&lines.every(line=>Array.isArray(line)&&line.every(p=>Array.isArray(p)&&p.length===2&&p.every(n=>Number.isFinite(n)&&n>=0&&n<=600))))))&&c.days&&typeof c.days==='object'&&!Array.isArray(c.days)&&Object.values(c.days).every(d=>Array.isArray(d)&&d.every(x=>typeof x==='string')))&&Array.isArray(s.tasks)&&s.tasks.length<=60&&s.tasks.every(t=>typeof t.id==='string'&&typeof t.title==='string'&&typeof t.emoji==='string'&&(t.owner===undefined||t.owner===0||t.owner===1))&&new Set(s.tasks.map(t=>t.id)).size===s.tasks.length&&typeof s.reward==='string'&&Number.isInteger(s.cost)&&s.cost>=1&&s.cost<=999;}
 const eightTasks=[['👕','あさ おきてすぐ おきがえ'],['🪥','はみがき'],['🎹','ピアノの れんしゅう'],['📚','しゅくだい'],['🧸','おかたづけ']];
+function addYoungerPiano(data){
+ if(data.youngerPianoRevision)return;
+ if(!data.tasks.some(t=>t.owner===1&&t.title.includes('ピアノ'))){const task={id:uid(),title:'ピアノの れんしゅう',emoji:'🎹',owner:1};data.tasks.push(task);const snapshot=data.children[1].snapshots?.[day()];if(snapshot)snapshot.push(structuredClone(task));}
+ data.youngerPianoRevision=1;
+}
 function migrate(data){
  if(!data.profileRevision){
   if(data.children[0].name==='8さい')data.children[0].name='9さい';
@@ -12,7 +17,7 @@ function migrate(data){
   data.profileRevision=1;
  }
 
- if(data.taskRevision===2)return data;
+ if(data.taskRevision===2){addYoungerPiano(data);return data;}
  const old=data.tasks;
  data.tasks=old.map(t=>({...t,owner:1}));
  for(const [emoji,title] of eightTasks){
@@ -21,6 +26,7 @@ function migrate(data){
    if(match)for(const checked of Object.values(data.children[0].days))if(checked.includes(match.id))checked.push(match.id+'-older');
  }
  data.taskRevision=2;
+ addYoungerPiano(data);
  return data;
 }
 function tasksFor(){
@@ -55,7 +61,7 @@ function storeReflection(text,date=viewDay()){
  if(selected!==0||date!==day()||viewDay()!==day())return false;
  const c=state.children[0];c.notes||={};
  if(text.length)c.notes[date]=text.slice(0,200);else delete c.notes[date];
- return save();
+ const saved=save();if(typeof $('historyList')?.replaceChildren==='function')renderHistory();return saved;
 }
 function renderReflection(){
  const section=$('reflection'),input=$('reflectionText'),date=viewDay(),editable=date===day();
@@ -70,6 +76,34 @@ function renderReflection(){
  $('reflectionCount').textContent=input.value.length+' / 200';
  if(changed)$('reflectionStatus').textContent=editable?(input.value?'保存したひとこと':'') : '';
 }
+function renderHistory(){
+ const c=state.children[selected],all=$('historyAll').checked;
+ const keys=[...new Set([...Object.keys(c.days),...Object.keys(c.snapshots||{}),...Object.keys(c.notes||{}),...Object.keys(c.drawings||{})])].filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)&&d<=day()).sort().reverse();
+ const dates=all?keys:keys.slice(0,30);
+ $('historyTitle').textContent=c.name+'の まいにちの きろく';
+ $('historyList').replaceChildren(...dates.map(d=>{
+  const ids=c.days[d]||[],tasks=c.snapshots?.[d]||state.tasks.filter(t=>t.owner===selected),done=tasks.filter(t=>ids.includes(t.id));
+  const article=document.createElement('article');article.className='history-item';
+  article.append(button(dateObject(d).toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'short'})+'　'+(done.length===tasks.length&&tasks.length?'🌟 ':'')+done.length+' / '+tasks.length+' できた',()=>{selectedDay=d===day()?null:d;render();$('greeting').scrollIntoView({behavior:'smooth',block:'start'});}));
+  const list=document.createElement('p');list.textContent=done.length?done.map(t=>t.emoji+' '+t.title).join(' ／ '):'チェックは まだありません';article.append(list);
+  if(c.notes?.[d]){const note=document.createElement('p');note.className='history-note';note.textContent='📖 '+c.notes[d];article.append(note);}
+  if(c.drawings?.[d]?.length){const note=document.createElement('small');note.textContent='✍ 保存された手書きあり（日付を押すと確認できます）';article.append(note);}
+  return article;
+ }));
+ if(!dates.length)$('historyList').textContent='きろくは これから ふえていくよ。';
+}
+function showTreasure(reward=false){
+ let modal=$('treasureModal');if(!modal){modal=document.createElement('dialog');modal.id='treasureModal';document.body.append(modal);}
+ modal.replaceChildren();const box=document.createElement('div');box.className='treasure-party';
+ const heading=document.createElement('h2');heading.textContent=reward?'🎉 ごほうびと こうかん！':'ぜんぶ できた！ すごい！';
+ const chest=document.createElement('div');chest.className='opening-chest';chest.textContent='🎁';
+ const item=document.createElement('div');item.className='treasure-prize';
+ const symbols=state.children[selected].theme==='space'?['🚀','🪐','🛸','🌠','🌍','👨‍🚀','☄️']:['🦄','🦋','🌷','👑','🌈','🧚','💎'];
+ const d=dateObject(viewDay());item.textContent=reward?'🏆':symbols[Math.floor(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())/86400000)%7];
+ const caption=document.createElement('p');caption.className='prize-caption';caption.textContent=reward?state.reward:'きょうの おたからシール！';
+ const encouragement=document.createElement('p');encouragement.textContent=reward?'おうちのひとから ごほうびを もらおう！':'ひとつずつ がんばった きみに はなまる！';
+ box.append(heading,chest,item,caption,encouragement,button('やったー！',()=>modal.close(),'primary'));modal.append(box);modal.showModal();celebrate(true);playSound('all');
+}
 function celebrate(all){
  const tray=document.createElement('div');tray.className='celebration';tray.setAttribute('aria-hidden','true');
  for(let i=0;i<(all?22:7);i++){const star=document.createElement('span');star.textContent=all?(state.children[selected].theme==='space'?['🚀','🪐','⭐','☄️']:['🌸','🦋','✨','🌈'])[i%4]:(state.children[selected].theme==='space'?'⭐':'🌸');star.style.left=(5+Math.random()*90)+'%';star.style.animationDelay=(Math.random()*.4)+'s';tray.append(star);}
@@ -81,11 +115,11 @@ state=migrate(state);
 function save(){try{localStorage.setItem(KEY,JSON.stringify(state));return true;}catch(e){$('notice').textContent='記録を保存できません。ブラウザの保存設定を確認し、バックアップしてください。';return false;}}
 function day(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
 function button(text,fn,cls){const b=document.createElement('button');b.type='button';b.textContent=text;if(cls)b.className=cls;b.onclick=fn;return b;}
-function render(){const tasks=tasksFor(),child=state.children[selected],done=child.days[viewDay()]||[],count=tasks.filter(t=>done.includes(t.id)).length;document.body.dataset.theme=child.theme||'magic';document.querySelector('.garden').setAttribute('aria-label',child.theme==='space'?'ぼうけんの うちゅう':'まほうの おにわ');document.querySelector('.flower').textContent=child.theme==='space'?'✨ 🪐 ✨':'🌷 🌸 🌷';$('profiles').replaceChildren(...state.children.map((c,i)=>{const b=button(`${c.theme==='space'?'🚀':'🦄'} ${c.name}`,()=>{selected=i;render();});b.setAttribute('aria-pressed',String(i===selected));return b;}));snapshotToday();renderCalendar();renderReflection();$('date').textContent=dateObject(viewDay()).toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'long'});$('greeting').textContent=`${child.name}の ${viewDay()===day()?'きょう':viewDay()>day()?'よてい':'きろく'}`;$('balance').textContent=`⭐ ${child.stars} こ`;$('tree').textContent=child.theme==='space'?(child.stars>=20?'🛸':child.stars>=5?'🚀':'🌍'):(child.stars>=20?'🏰':child.stars>=5?'🦄':'🌸');$('progressText').textContent=`${count} / ${tasks.length} できた`;$('progress').max=Math.max(1,tasks.length);$('progress').value=count;$('progress').setAttribute('aria-label','今日のできた数');$('tasks').replaceChildren(...tasks.map(t=>{const yes=done.includes(t.id),b=button('',()=>complete(t.id),'task'+(yes?' done':''));for(const [cls,text]of [['emoji',t.emoji],['title',t.title],['check',yes?'✓':'']]){const span=document.createElement('span');span.className=cls;span.textContent=text;b.append(span);}b.disabled=viewDay()!==day();b.setAttribute('aria-pressed',String(yes));b.setAttribute('aria-label',`${t.title}、${viewDay()!==day()?(yes?'できた':'チェックなし'):yes?'できた。もういちど押すと取り消し':'タップでできた'}`);return b;}));$('cheer').textContent=count&&count===tasks.length?'🎉 ぜんぶ できたね！ はなまる！':tasks.length?'ひとつずつ、じぶんのペースで。':'おうちのひとに やることを いれてもらおう';let treasure=$('dailyTreasure');if(!treasure){treasure=document.createElement('div');treasure.id='dailyTreasure';treasure.className='daily-treasure';$('cheer').after(treasure);}
+function render(){const tasks=tasksFor(),child=state.children[selected],done=child.days[viewDay()]||[],count=tasks.filter(t=>done.includes(t.id)).length;document.body.dataset.theme=child.theme||'magic';document.querySelector('.garden').setAttribute('aria-label',child.theme==='space'?'ぼうけんの うちゅう':'まほうの おにわ');document.querySelector('.flower').textContent=child.theme==='space'?'✨ 🪐 ✨':'🌷 🌸 🌷';$('profiles').replaceChildren(...state.children.map((c,i)=>{const b=button(`${c.theme==='space'?'🚀':'🦄'} ${c.name}`,()=>{selected=i;render();});b.setAttribute('aria-pressed',String(i===selected));return b;}));snapshotToday();renderCalendar();renderReflection();renderHistory();$('date').textContent=dateObject(viewDay()).toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'long'});$('greeting').textContent=`${child.name}の ${viewDay()===day()?'きょう':viewDay()>day()?'よてい':'きろく'}`;$('balance').textContent=`⭐ ${child.stars} こ`;$('tree').textContent=child.theme==='space'?(child.stars>=20?'🛸':child.stars>=5?'🚀':'🌍'):(child.stars>=20?'🏰':child.stars>=5?'🦄':'🌸');$('progressText').textContent=`${count} / ${tasks.length} できた`;$('progress').max=Math.max(1,tasks.length);$('progress').value=count;$('progress').setAttribute('aria-label','今日のできた数');$('tasks').replaceChildren(...tasks.map(t=>{const yes=done.includes(t.id),b=button('',()=>complete(t.id),'task'+(yes?' done':''));for(const [cls,text]of [['emoji',t.emoji],['title',t.title],['check',yes?'✓':'']]){const span=document.createElement('span');span.className=cls;span.textContent=text;b.append(span);}b.disabled=viewDay()!==day();b.setAttribute('aria-pressed',String(yes));b.setAttribute('aria-label',`${t.title}、${viewDay()!==day()?(yes?'できた':'チェックなし'):yes?'できた。もういちど押すと取り消し':'タップでできた'}`);return b;}));$('cheer').textContent=count&&count===tasks.length?'🎉 ぜんぶ できたね！ はなまる！':tasks.length?'ひとつずつ、じぶんのペースで。':'おうちのひとに やることを いれてもらおう';let treasure=$('dailyTreasure');if(!treasure){treasure=document.createElement('div');treasure.id='dailyTreasure';treasure.className='daily-treasure';$('cheer').after(treasure);}
  const completeToday=tasks.length>0&&count===tasks.length;
  const sticker=(child.theme==='space'?['🚀','🪐','🛸','🌠','🌍','👨‍🚀','☄️']:['🦄','🦋','🌷','👑','🌈','🧚','💎'])[Math.floor(Date.UTC(dateObject(viewDay()).getFullYear(),dateObject(viewDay()).getMonth(),dateObject(viewDay()).getDate())/86400000)%7];
  const medals=Object.values(child.days).filter(ids=>tasks.length&&tasks.every(t=>ids.includes(t.id))).length;
- treasure.replaceChildren();const gift=document.createElement('div');gift.className='treasure-icon';gift.textContent=completeToday?sticker:'🎁';const title=document.createElement('strong');title.textContent=viewDay()>day()?'この日も おたからを めざそう！':completeToday?'この日の おたから ゲット！':'ぜんぶ できたら おたからが ひらくよ';const note=document.createElement('p');note.textContent=completeToday?`はなまる ${medals}にち！ あしたは なにが でるかな？`:'まいにち ちがう シールが もらえるよ';treasure.append(gift,title,note);
+ treasure.replaceChildren();const gift=document.createElement('div');gift.className='treasure-icon';gift.textContent=completeToday?sticker:'🎁';const title=document.createElement('strong');title.textContent=viewDay()>day()?'この日も おたからを めざそう！':completeToday?'この日の おたから ゲット！':'ぜんぶ できたら おたからが ひらくよ';const note=document.createElement('p');note.textContent=completeToday?`はなまる ${medals}にち！ あしたは なにが でるかな？`:'まいにち ちがう シールが もらえるよ';treasure.append(gift,title,note);const open=button(completeToday?'🎁 おたからを ひらく':'あと '+Math.max(0,tasks.length-count)+' こで オープン！',()=>showTreasure());open.disabled=!completeToday;open.className='open-treasure';treasure.append(open);
  $('rewardTitle').textContent=state.reward;$('rewardStatus').textContent=child.stars>=state.cost?'⭐ こうかんできるよ！ おうちのひとに みせよう':`あと ⭐ ${state.cost-child.stars} こで ごほうび！`;}
 let audioContext;
 function playSound(kind){
@@ -129,7 +163,7 @@ function complete(id){
  }
  save();render();
  if(checked){$('cheer').textContent='チェックを とりけしたよ。まちがえても だいじょうぶ！';playSound('undo');}
- else {const all=tasks.length>0&&tasks.every(t=>c.days[d].includes(t.id));celebrate(all);playSound(all?'all':'check');}
+ else {const all=tasks.length>0&&tasks.every(t=>c.days[d].includes(t.id));celebrate(all);if(all)showTreasure();else playSound('check');}
 }
 async function hash(pin){const bytes=new TextEncoder().encode('dekita-parent:'+pin);return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(x=>x.toString(16).padStart(2,'0')).join('');}
 $('settings').onclick=()=>{unlocked=false;$('editor').hidden=true;$('gate').hidden=false;$('pin').value='';$('gateError').textContent='';$('gateHint').textContent=state.pin?'親用の暗証番号を入力してください。':'最初に親用の4けたの暗証番号を決めてください。';$('parent').showModal();};
@@ -141,7 +175,7 @@ function exchangeInfo(){$('exchangeInfo').textContent=`${state.children[selected
 function renderEditor(){$('taskEditor').replaceChildren(...draft.map(t=>{const row=document.createElement('div');row.className='edit-row';for(const prop of ['emoji','title']){const input=document.createElement('input');input.value=t[prop];input.maxLength=prop==='emoji'?12:40;input.setAttribute('aria-label',prop==='emoji'?'絵文字':'やること');input.oninput=()=>t[prop]=input.value;row.append(input);}row.append(button('削除',()=>{draft=draft.filter(x=>x.id!==t.id);renderEditor();}));return row;}));$('addTask').disabled=draft.length>=30;}
 $('addTask').onclick=()=>{if(draft.length<30){draft.push({id:uid(),title:'',emoji:'⭐'});renderEditor();}};
 $('parentForm').onsubmit=e=>{e.preventDefault();if(!unlocked)return;state.children[0].name=$('name0').value.trim()||'9さい';state.children[1].name=$('name1').value.trim()||'6さい';for(let i=0;i<2;i++)state.children[i].theme=$('theme'+i).value;state.tasks=[...state.tasks.filter(t=>t.owner!==selected),...draft.filter(t=>t.title.trim()).map(t=>({...t,title:t.title.trim(),emoji:t.emoji||'⭐',owner:selected}))];state.reward=$('rewardInput').value.trim()||'ごほうび';state.cost=Math.max(1,Math.min(999,Number($('cost').value)||10));state.children[selected].snapshots[day()]=structuredClone(state.tasks.filter(t=>t.owner===selected));save();render();$('parent').close();};
-$('exchange').onclick=()=>{if(!unlocked||state.children[selected].stars<state.cost)return;if(confirm(`「${state.reward}」と交換して、星${state.cost}個を使いますか？`)){state.children[selected].stars-=state.cost;save();render();exchangeInfo();}};
+$('exchange').onclick=()=>{if(!unlocked||state.children[selected].stars<state.cost)return;if(confirm(`「${state.reward}」と交換して、星${state.cost}個を使いますか？`)){state.children[selected].stars-=state.cost;save();render();exchangeInfo();$('parent').close();showTreasure(true);}};
 $('export').onclick=()=>{if(!unlocked)return;const url=URL.createObjectURL(new Blob([JSON.stringify(state,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=`dekita-${day()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 $('import').onchange=async e=>{if(!unlocked)return;const file=e.target.files[0];if(!file)return;try{if(file.size>2000000)throw Error();const data=JSON.parse(await file.text());if(!valid(data))throw Error();if(confirm('現在の記録を保存ファイルの内容で置き換えますか？')){state=migrate(data);save();render();$('parent').close();}}catch(err){alert('保存ファイルを読めませんでした。正しいバックアップを選んでください。');}e.target.value='';};
 setInterval(render,30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)render();});
@@ -150,6 +184,7 @@ if('serviceWorker'in navigator){navigator.serviceWorker.register('./sw.js').then
 $('reflectionText').oninput=e=>{const input=e.target;if(input.dataset.context!=='0:'+day()||selected!==0||viewDay()!==day()){renderReflection();return;}const ok=storeReflection(input.value);$('reflectionCount').textContent=input.value.length+' / 200';$('reflectionStatus').textContent=ok?'ほぞんしたよ ✓':'保存できません。文章をコピーして残してください。';};
 $('prevDay').onclick=()=>shiftDay(-1);$('nextDay').onclick=()=>shiftDay(1);$('todayButton').onclick=()=>{selectedDay=null;render();};$('dayPicker').onchange=e=>{if(/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)){selectedDay=e.target.value===day()?null:e.target.value;render();}};
 $('update').onclick=()=>pendingWorker?.postMessage('activate');
+$('historyAll').onchange=renderHistory;
 $('refreshApp').onclick=async()=>{
  if(!save())return;
  const button=$('refreshApp');button.disabled=true;button.textContent='更新中…';
