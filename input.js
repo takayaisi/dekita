@@ -1,7 +1,6 @@
 'use strict';
-let inputMode='kana',recognition=null,voiceContext=null,drawContext=null;
-const modes=[['keyboard','⌨ キーボード'],['kana','あ ひらがな'],['voice','🎤 おんせい'],['hand','✍ てがき']];
-function stopVoice(){if(recognition){recognition.abort();recognition=null;}voiceContext=null;}
+let inputMode='kana';
+const modes=[['kana','あ ひらがな'],['keyboard','⌨ キーボード']];
 function insertKana(text,back=false){
  if(selected!==0||viewDay()!==day())return;
  const field=$('reflectionText'),a=field.selectionStart??field.value.length,b=field.selectionEnd??a;
@@ -17,29 +16,17 @@ function transformKana(kind){
  const ch=field.value[p-1],group=groups.find(g=>g.includes(ch));if(!group)return;
  field.setSelectionRange(p-1,p);insertKana(group[(group.indexOf(ch)+1)%group.length]);
 }
-function startVoice(){
- if(selected!==0||viewDay()!==day())return;
- const Speech=window.SpeechRecognition||window.webkitSpeechRecognition;
- if(!Speech){$('voiceStatus').textContent='このブラウザでは直接録音できません。下の文章欄をタップし、iPad・iPhoneのキーボードにあるマイクから音声入力してください。';$('reflectionText').focus();return;}
- stopVoice();const rec=new Speech();recognition=rec;const target=day();voiceContext=target;
- rec.lang='ja-JP';rec.interimResults=false;rec.continuous=false;
- rec.onresult=e=>{if(selected!==0||viewDay()!==target||day()!==target||voiceContext!==target)return;const text=Array.from(e.results).map(r=>r[0].transcript).join('');const current=state.children[0].notes?.[target]||'';const next=(current+text).slice(0,200);storeReflection(next);$('reflectionText').value=next;renderReflection();};
- rec.onerror=e=>{const el=$('voiceStatus');if(el)el.textContent=e.error==='not-allowed'?'マイクを許可するか、キーボードのマイクから入力してください。':'音声入力を開始できませんでした。キーボードのマイクも使えます。';};
- rec.onend=()=>{if(recognition===rec)recognition=null;const el=$('voiceStatus');if(el&&el.textContent==='きいているよ…')el.textContent='おわったよ。文字をたしかめてね。';};
- try{rec.start();$('voiceStatus').textContent='きいているよ…';}catch(e){$('voiceStatus').textContent='音声入力を開始できませんでした。';}
-}
 function renderInputTools(){
  const editable=viewDay()===day(),context=selected+':'+viewDay();
- if(voiceContext&&voiceContext!==day())stopVoice();
  $('inputModes').hidden=!editable;
- $('inputModes').replaceChildren(...modes.map(([key,label])=>{const b=button(label,()=>{stopVoice();inputMode=key;drawContext=null;renderReflection();});b.setAttribute('aria-pressed',String(inputMode===key));return b;}));
+ $('inputModes').replaceChildren(...modes.map(([key,label])=>{const b=button(label,()=>{inputMode=key;renderReflection();});b.setAttribute('aria-pressed',String(inputMode===key));return b;}));
  const field=$('reflectionText');field.readOnly=!editable||inputMode==='kana';
  const tools=$('inputTools');
  if(tools.dataset.context===context+':'+inputMode)return;
- stopVoice();tools.dataset.context=context+':'+inputMode;tools.replaceChildren();
+ tools.dataset.context=context+':'+inputMode;tools.replaceChildren();
  const note=text=>{const p=document.createElement('p');p.className='hint';p.textContent=text;tools.append(p);};
  if(!editable){renderDrawing(tools,false);return;}
- if(inputMode==='keyboard'){note('文章欄をタップして入力。iPadの予測変換や音声入力も使えます。');}
+ if(inputMode==='keyboard'){note('文章欄をタップして、キーボードでじぶんのことばをかこう。');}
  if(inputMode==='kana'){
   note('じぶんの ことばを 1もじずつ タップしよう。文字の位置は ← → でかえられるよ。');
   const grid=document.createElement('div');grid.className='kana-grid';
@@ -51,14 +38,6 @@ function renderInputTools(){
   const row=document.createElement('div');row.className='kana-actions';
   for(const [label,action]of [['゛゜',()=>transformKana('voice')],['小さい字',()=>transformKana('small')],['、',()=>insertKana('、')],['。',()=>insertKana('。')],['ー',()=>insertKana('ー')],['あける',()=>insertKana(' ')],['←',()=>{const n=Math.max(0,field.selectionStart-1);field.setSelectionRange(n,n);}],['→',()=>{const n=Math.min(field.value.length,field.selectionStart+1);field.setSelectionRange(n,n);}],['1もじけす',()=>insertKana('',true)]])row.append(button(label,action));
   tools.append(row);
- }
- if(inputMode==='voice'){
-  note('「はなす」を押して自分の言葉を話そう。音声はブラウザ・OSの認識サービスに送信される場合があります。マイクの許可が必要です。');
-  tools.append(button('🎤 はなす',startVoice),button('■ とめる',stopVoice));const p=document.createElement('p');p.id='voiceStatus';p.setAttribute('role','status');tools.append(p);
-  note('直接入力が使えない場合：文章欄をタップ → キーボードのマイクを押す。');
- }
- if(inputMode==='hand'){
-  note('1もじずつ かいて「もじにする」→ ただしい もじを タップ。上の文章欄に入るよ。認識は端末内で行います。');renderRecognition(tools);
  }
 }
 function renderDrawing(container,editable){
@@ -75,44 +54,5 @@ function renderDrawing(container,editable){
  canvas.onpointermove=e=>{e.preventDefault();if(!active||pointer!==e.pointerId)return;if(strokes.flat().length<3000)active.push(point(e));redraw();};
  canvas.onpointerup=canvas.onpointercancel=e=>{if(e.pointerId!==pointer)return;active=null;pointer=null;persist();};
  const undo=button('ひとふで もどす',()=>{strokes.pop();redraw();persist();});container.append(undo,button('てがきを ほぞん',persist));
-}
-let recognitionEngine;
-function loadRecognition(){
- if(recognitionEngine)return recognitionEngine;
- const script=src=>new Promise((resolve,reject)=>{const el=document.createElement('script');el.src=src;el.onload=resolve;el.onerror=reject;document.head.append(el);});
- recognitionEngine=script('./vendor-kanji.js').then(()=>script('./vendor-patterns.js')).catch(e=>{recognitionEngine=null;throw e;});return recognitionEngine;
-}
-function renderRecognition(container){
- const context=viewDay();let strokes=[],active=null,pointer=null;
- const canvas=document.createElement('canvas');canvas.width=256;canvas.height=256;canvas.className='recognition-pad';canvas.setAttribute('aria-label','手書き文字認識。1文字ずつ書く');
- const result=document.createElement('div');result.className='recognition-results';result.setAttribute('aria-label','変換候補');
- const status=document.createElement('p');status.setAttribute('role','status');status.className='hint';
- const ctx=canvas.getContext('2d');ctx.lineWidth=3;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#704b79';
- function redraw(){ctx.clearRect(0,0,256,256);for(const line of strokes){ctx.beginPath();line.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.stroke();}}
- function point(e){const r=canvas.getBoundingClientRect();return [Math.max(0,Math.min(256,(e.clientX-r.left)*256/r.width)),Math.max(0,Math.min(256,(e.clientY-r.top)*256/r.height))];}
- function fresh(){return selected===0&&viewDay()===context&&context===day()&&canvas.isConnected;}
- canvas.onpointerdown=e=>{e.preventDefault();if(active||!fresh()||strokes.length>=30)return;pointer=e.pointerId;canvas.setPointerCapture(pointer);active=[point(e)];strokes.push(active);result.replaceChildren();};
- canvas.onpointermove=e=>{e.preventDefault();if(active&&e.pointerId===pointer&&active.length<200){active.push(point(e));redraw();}};
- canvas.onpointerup=canvas.onpointercancel=e=>{if(pointer!==e.pointerId)return;if(active?.length===1)active.push([active[0][0]+.2,active[0][1]+.2]);redraw();active=null;pointer=null;};
- const recognize=button('✨ もじにする',async()=>{
-  if(!fresh()||!strokes.length||active)return;
-  recognize.disabled=true;status.textContent='もじを しらべているよ…';
-  try{
-   await loadRecognition();if(!fresh())return;
-   const id='reflection-recognition',k=window.KanjiCanvas;
-   k['recordedPattern_'+id]=structuredClone(strokes);k['canvas_'+id]=canvas;k['ctx_'+id]=ctx;k['w_'+id]=256;k['h_'+id]=256;canvas.dataset.strokeNumbers='false';
-   const candidates=String(k.recognize(id)||'').trim().split(/\s+/).filter(Boolean);redraw();
-   result.replaceChildren(...candidates.map(ch=>button(ch,()=>{
-    if(!fresh())return;
-    const field=$('reflectionText');if(field.value.length>=200){status.textContent='200もじまでです。';return;}
-    insertKana(ch);strokes=[];redraw();result.replaceChildren();status.textContent='上の文章欄に いれたよ！ つぎの もじを かこう。';
-   })));
-   status.textContent=candidates.length?'ただしい もじを えらんでね。':'うまく よめなかったよ。もういちど かいてみよう。';
-  }catch(error){status.textContent='認識データを読めませんでした。通信できる状態で「更新」を押すか、ひらがな文字盤を使ってください。';}
-  finally{recognize.disabled=false;}
- });
- const controls=document.createElement('div');controls.className='kana-actions';controls.append(recognize,button('ひとふで もどす',()=>{strokes.pop();redraw();result.replaceChildren();}),button('かきなおす',()=>{strokes=[];redraw();result.replaceChildren();status.textContent='1もじ かいてね。';}));
- const credit=document.createElement('a');credit.className='recognition-credit';credit.href='https://github.com/asdfjkl/kanjicanvas';credit.target='_blank';credit.rel='noopener';credit.textContent='文字認識：Kanji Canvas（MIT）';
- container.append(canvas,controls,status,result,credit);
 }
 renderReflection();
