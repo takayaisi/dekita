@@ -65,7 +65,19 @@ function renderReflection(){
  input.readOnly=!editable;input.disabled=date>day();
  input.placeholder=date>day()?'この日になったら、ひとことを かこう。':date<day()?'この日の ひとことは まだありません。':'たのしかったこと、がんばったこと… なんでも かいてね。';
  $('reflectionTitle').textContent=editable?'きょうは どんな いちにちだった？':'この日の ひとこと';
- $('reflectionHelp').textContent=editable?'ひとことでも だいじょうぶ。かいたら じどうで ほぞんするよ。':date>day()?'みらいの ひとことは、まだ かけないよ。':'この日に かいたことを よみかえせるよ。';
+ $('reflectionHelp').textContent=editable?'ボタンを タップするだけでも OK！ じどうで ほぞんするよ。':date>day()?'みらいの ひとことは、まだ かけないよ。':'この日に かいたことを よみかえせるよ。';
+ const choices=[['😊 たのしかった','たのしかった！'],['😌 がんばった','がんばった！'],['😴 つかれた','ちょっと つかれた。'],['😢 かなしかった','かなしいことが あった。'],['🎹 ピアノ','ピアノを れんしゅうした。'],['📚 べんきょう','べんきょうを がんばった。'],['🧑‍🤝‍🧑 おともだち','おともだちと あそんだ。'],['🌈 あしたも','あしたも たのしみ！']];
+ $('reflectionChoices').hidden=!editable;
+ $('reflectionChoices').replaceChildren(...choices.map(([label,text])=>{
+  const b=button(label,()=>{
+   if(selected!==0||viewDay()!==day())return;
+   const current=state.children[0].notes?.[day()]||'';
+   const pieces=current.split('\n');
+   const next=pieces.includes(text)?pieces.filter(x=>x!==text).join('\n'):(current?current+'\n':'')+text;
+   if(next.length>200){$('reflectionStatus').textContent='200もじまでだよ。すこし へらしてね。';return;}
+   const ok=storeReflection(next);input.value=next;renderReflection();$('reflectionStatus').textContent=ok?'ほぞんしたよ ✓':'保存できませんでした。';
+  });b.setAttribute('aria-pressed',String((state.children[0].notes?.[date]||'').split('\n').includes(text)));return b;
+ }));
  $('reflectionCount').textContent=input.value.length+' / 200';
  if(changed)$('reflectionStatus').textContent=editable?(input.value?'保存したひとこと':'') : '';
 }
@@ -95,13 +107,17 @@ function playSound(kind){
   const ctx=audioContext;
   const play=()=>{
    const magic=state.children[selected].theme!=='space';
-   const notes=kind==='undo'?[440,330]:kind==='all'?(magic?[523.25,659.25,783.99,1046.5]:[392,523.25,659.25,783.99,1046.5]):(magic?[659.25,987.77]:[523.25,783.99]);
+   const notes=kind==='undo'?[783.99,659.25]:kind==='all'?(magic?[783.99,987.77,1174.66,987.77,1567.98]:[659.25,783.99,987.77,1174.66,1318.51]):(magic?[1046.5,1318.51,1567.98]:[987.77,1174.66,1479.98]);
    const start=ctx.currentTime+.02;
    notes.forEach((frequency,i)=>{
-    const osc=ctx.createOscillator(),gain=ctx.createGain(),t=start+i*(kind==='all'?.13:.09),duration=kind==='all'?.3:.17;
-    osc.type=magic?'sine':'triangle';osc.frequency.setValueAtTime(frequency,t);
-    gain.gain.setValueAtTime(0,t);gain.gain.linearRampToValueAtTime(.045,t+.012);gain.gain.exponentialRampToValueAtTime(.0001,t+duration);
-    osc.connect(gain);gain.connect(ctx.destination);osc.start(t);osc.stop(t+duration+.02);
+    const t=start+i*(kind==='all'?.17:.11),duration=kind==='undo'?.22:.52;
+    // Rounded bell tone with a quiet octave shimmer and a soft, fading echo.
+    for(const [ratio,volume,delay] of [[1,.033,0],[2,.006,0],[1,.006,.085]]){
+     const osc=ctx.createOscillator(),gain=ctx.createGain(),at=t+delay;
+     osc.type='sine';osc.frequency.setValueAtTime(frequency*ratio,at);
+     gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(volume,at+.008);gain.gain.exponentialRampToValueAtTime(.0001,at+duration);
+     osc.connect(gain);gain.connect(ctx.destination);osc.start(at);osc.stop(at+duration+.02);
+    }
    });
   };
   if(ctx.state==='suspended')ctx.resume().then(play).catch(()=>{});else play();
