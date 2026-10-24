@@ -1,5 +1,5 @@
-const CACHE='dekita-v20';
-const FILES=['./','./index.html','./style.css?v=19','./app.js?v=17','./input.js?v=18','./icon.svg','./apple-touch-icon.png','./manifest.webmanifest'];
+const CACHE='dekita-v21';
+const FILES=['./','./index.html','./style.css?v=20','./app.js?v=17','./input.js?v=18','./icon.svg','./apple-touch-icon.png','./manifest.webmanifest'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES))));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('dekita-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('message',e=>{if(e.data==='activate')self.skipWaiting();});
