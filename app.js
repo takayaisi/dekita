@@ -5,6 +5,13 @@ const initial=()=>({version:1,pin:null,children:[{name:'9さい',stars:0,days:{}
 function valid(s){return s&&s.version===1&&(s.pin===null||typeof s.pin==='string')&&Array.isArray(s.children)&&s.children.length===2&&s.children.every(c=>typeof c.name==='string'&&Number.isSafeInteger(c.stars)&&c.stars>=0&&(c.debt===undefined||(Number.isSafeInteger(c.debt)&&c.debt>=0))&&(c.theme===undefined||['magic','space'].includes(c.theme))&&(c.snapshots===undefined||(c.snapshots&&typeof c.snapshots==='object'&&!Array.isArray(c.snapshots)&&Object.values(c.snapshots).every(ts=>Array.isArray(ts)&&ts.length<=30&&ts.every(t=>t&&typeof t.id==='string'&&typeof t.title==='string'&&typeof t.emoji==='string'))))&&(c.notes===undefined||(c.notes&&typeof c.notes==='object'&&!Array.isArray(c.notes)&&Object.entries(c.notes).every(([k,v])=>/^\d{4}-\d{2}-\d{2}$/.test(k)&&typeof v==='string'&&v.length<=200)))&&(c.drawings===undefined||(c.drawings&&typeof c.drawings==='object'&&!Array.isArray(c.drawings)&&Object.values(c.drawings).every(lines=>Array.isArray(lines)&&lines.flat().length<=3000&&lines.every(line=>Array.isArray(line)&&line.every(p=>Array.isArray(p)&&p.length===2&&p.every(n=>Number.isFinite(n)&&n>=0&&n<=600))))))&&c.days&&typeof c.days==='object'&&!Array.isArray(c.days)&&Object.values(c.days).every(d=>Array.isArray(d)&&d.every(x=>typeof x==='string')))&&Array.isArray(s.tasks)&&s.tasks.length<=60&&s.tasks.every(t=>typeof t.id==='string'&&typeof t.title==='string'&&typeof t.emoji==='string'&&(t.owner===undefined||t.owner===0||t.owner===1))&&new Set(s.tasks.map(t=>t.id)).size===s.tasks.length&&typeof s.reward==='string'&&Number.isInteger(s.cost)&&s.cost>=1&&s.cost<=999;}
 const eightTasks=[['👕','あさ おきてすぐ おきがえ'],['🪥','はみがき'],['🎹','ピアノの れんしゅう'],['📚','しゅくだい'],['🧸','おかたづけ']];
 function addYoungerPiano(data){
+ if(!data.youngerBedtimeRevision){
+  if(!data.tasks.some(t=>t.owner===1&&t.title.includes('おしっこ'))){
+   const task={id:uid(),title:'ねるまえに おしっこ',emoji:'🚽',owner:1};data.tasks.push(task);
+   const snapshot=data.children[1].snapshots?.[day()];if(snapshot)snapshot.push(structuredClone(task));
+  }
+  data.youngerBedtimeRevision=1;
+ }
  if(data.youngerPianoRevision)return;
  if(!data.tasks.some(t=>t.owner===1&&t.title.includes('ピアノ'))){const task={id:uid(),title:'ピアノの れんしゅう',emoji:'🎹',owner:1};data.tasks.push(task);const snapshot=data.children[1].snapshots?.[day()];if(snapshot)snapshot.push(structuredClone(task));}
  data.youngerPianoRevision=1;
@@ -111,7 +118,7 @@ function celebrate(all){
 }
 let state,selected=0,unlocked=false,draft=[],pendingWorker;
 try{let raw=localStorage.getItem(KEY);state=raw?JSON.parse(raw):initial();if(!valid(state))throw Error('invalid');}catch(e){state=initial();$('notice').textContent='保存された記録を読めませんでした。バックアップがある場合は設定から復元してください。';}
-state=migrate(state);
+state=migrate(state);state.pin=null;
 function save(){try{localStorage.setItem(KEY,JSON.stringify(state));return true;}catch(e){$('notice').textContent='記録を保存できません。ブラウザの保存設定を確認し、バックアップしてください。';return false;}}
 function day(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
 function button(text,fn,cls){const b=document.createElement('button');b.type='button';b.textContent=text;if(cls)b.className=cls;b.onclick=fn;return b;}
@@ -165,11 +172,9 @@ function complete(id){
  if(checked){$('cheer').textContent='チェックを とりけしたよ。まちがえても だいじょうぶ！';playSound('undo');}
  else {const all=tasks.length>0&&tasks.every(t=>c.days[d].includes(t.id));celebrate(all);if(all)showTreasure();else playSound('check');}
 }
-async function hash(pin){const bytes=new TextEncoder().encode('dekita-parent:'+pin);return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(x=>x.toString(16).padStart(2,'0')).join('');}
-$('settings').onclick=()=>{unlocked=false;$('editor').hidden=true;$('gate').hidden=false;$('pin').value='';$('gateError').textContent='';$('gateHint').textContent=state.pin?'親用の暗証番号を入力してください。':'最初に親用の4けたの暗証番号を決めてください。';$('parent').showModal();};
+$('settings').onclick=()=>{unlocked=true;$('editor').hidden=false;fillEditor();$('parent').showModal();};
 $('close').onclick=()=>$('parent').close();
-$('parent').addEventListener('close',()=>{unlocked=false;$('pin').value='';});
-$('unlock').onclick=async()=>{const p=$('pin').value;if(!/^\d{4}$/.test(p)){$('gateError').textContent='数字4けたを入力してください。';return;}try{const h=await hash(p);if(state.pin&&state.pin!==h){$('gateError').textContent='暗証番号が違います。';return;}if(!state.pin){state.pin=h;save();}unlocked=true;$('gate').hidden=true;$('editor').hidden=false;fillEditor();}catch(e){$('gateError').textContent='HTTPSの公開URL、またはlocalhostで開いてください。';}};
+$('parent').addEventListener('close',()=>{unlocked=false;});
 function fillEditor(){draft=structuredClone(state.tasks.filter(t=>t.owner===selected));$('name0').value=state.children[0].name;$('name1').value=state.children[1].name;$('rewardInput').value=state.reward;$('cost').value=state.cost;for(let i=0;i<2;i++)$('theme'+i).value=state.children[i].theme;renderEditor();exchangeInfo();$('taskEditor').previousElementSibling.textContent=state.children[selected].name+'の 毎日やること';}
 function exchangeInfo(){$('exchangeInfo').textContent=`${state.children[selected].name}：星${state.children[selected].stars}個${state.children[selected].debt?'（取消分の調整：あと'+state.children[selected].debt+'個）':''} ／ 「${state.reward}」に${state.cost}個`;$('exchange').disabled=state.children[selected].stars<state.cost;}
 function renderEditor(){$('taskEditor').replaceChildren(...draft.map(t=>{const row=document.createElement('div');row.className='edit-row';for(const prop of ['emoji','title']){const input=document.createElement('input');input.value=t[prop];input.maxLength=prop==='emoji'?12:40;input.setAttribute('aria-label',prop==='emoji'?'絵文字':'やること');input.oninput=()=>t[prop]=input.value;row.append(input);}row.append(button('削除',()=>{draft=draft.filter(x=>x.id!==t.id);renderEditor();}));return row;}));$('addTask').disabled=draft.length>=30;}
