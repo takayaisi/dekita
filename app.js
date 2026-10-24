@@ -91,7 +91,7 @@ function renderHistory(){
  $('historyList').replaceChildren(...dates.map(d=>{
   const ids=c.days[d]||[],tasks=c.snapshots?.[d]||state.tasks.filter(t=>t.owner===selected),done=tasks.filter(t=>ids.includes(t.id));
   const article=document.createElement('article');article.className='history-item';
-  article.append(button(dateObject(d).toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'short'})+'　'+(done.length===tasks.length&&tasks.length?'🌟 ':'')+done.length+' / '+tasks.length+' できた',()=>{selectedDay=d===day()?null:d;render();$('greeting').scrollIntoView({behavior:'smooth',block:'start'});}));
+  article.append(button(dateObject(d).toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'short'})+'　'+(done.length===tasks.length&&tasks.length?'🌟 ':'')+done.length+' / '+tasks.length+' できた',()=>{selectedDay=d===day()?null:d;switchView('today');$('greeting').scrollIntoView({behavior:'smooth',block:'start'});}));
   const list=document.createElement('p');list.textContent=done.length?done.map(t=>t.emoji+' '+t.title).join(' ／ '):'チェックは まだありません';article.append(list);
   if(c.notes?.[d]){const note=document.createElement('p');note.className='history-note';note.textContent='📖 '+c.notes[d];article.append(note);}
   if(c.drawings?.[d]?.length){const note=document.createElement('small');note.textContent='✍ 保存された手書きあり（日付を押すと確認できます）';article.append(note);}
@@ -117,6 +117,8 @@ function celebrate(all){
  document.body.append(tray);setTimeout(()=>tray.remove(),2400);
 }
 let state,selected=0,unlocked=false,draft=[],pendingWorker;
+let currentView='today';
+function switchView(view){currentView=view;document.querySelector('main').dataset.view=view;document.querySelector('.history-panel').hidden=view!=='history';$('todayView').setAttribute('aria-pressed',String(view==='today'));$('historyView').setAttribute('aria-pressed',String(view==='history'));render();window.scrollTo({top:0,behavior:'smooth'});}
 try{let raw=localStorage.getItem(KEY);state=raw?JSON.parse(raw):initial();if(!valid(state))throw Error('invalid');}catch(e){state=initial();$('notice').textContent='保存された記録を読めませんでした。バックアップがある場合は設定から復元してください。';}
 state=migrate(state);state.pin=null;
 function save(){try{localStorage.setItem(KEY,JSON.stringify(state));return true;}catch(e){$('notice').textContent='記録を保存できません。ブラウザの保存設定を確認し、バックアップしてください。';return false;}}
@@ -189,7 +191,7 @@ if('serviceWorker'in navigator){navigator.serviceWorker.register('./sw.js').then
 $('reflectionText').oninput=e=>{const input=e.target;if(input.dataset.context!=='0:'+day()||selected!==0||viewDay()!==day()){renderReflection();return;}const ok=storeReflection(input.value);$('reflectionCount').textContent=input.value.length+' / 200';$('reflectionStatus').textContent=ok?'ほぞんしたよ ✓':'保存できません。文章をコピーして残してください。';};
 $('prevDay').onclick=()=>shiftDay(-1);$('nextDay').onclick=()=>shiftDay(1);$('todayButton').onclick=()=>{selectedDay=null;render();};$('dayPicker').onchange=e=>{if(/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)){selectedDay=e.target.value===day()?null:e.target.value;render();}};
 $('update').onclick=()=>pendingWorker?.postMessage('activate');
-$('historyAll').onchange=renderHistory;
+$('historyAll').onchange=renderHistory;$('todayView').onclick=()=>switchView('today');$('historyView').onclick=()=>switchView('history');$('backToday').onclick=()=>switchView('today');
 $('refreshApp').onclick=async()=>{
  if(!save())return;
  const button=$('refreshApp');button.disabled=true;button.textContent='更新中…';
