@@ -1,5 +1,6 @@
 'use strict';
-let inputMode='kana';
+let inputMode='kana',smallKanaMode=false;
+const smallKanaMap={'あ':'ぁ','い':'ぃ','う':'ぅ','え':'ぇ','お':'ぉ','つ':'っ','や':'ゃ','ゆ':'ゅ','よ':'ょ','わ':'ゎ'};
 const modes=[['kana','あ ひらがな'],['keyboard','⌨ キーボード']];
 function insertKana(text,back=false){
  if(selected!==0||viewDay()!==day())return;
@@ -22,21 +23,21 @@ function renderInputTools(){
  $('inputModes').replaceChildren(...modes.map(([key,label])=>{const b=button(label,()=>{inputMode=key;renderReflection();});b.setAttribute('aria-pressed',String(inputMode===key));return b;}));
  const field=$('reflectionText');field.readOnly=!editable||inputMode==='kana';
  const tools=$('inputTools');
- if(tools.dataset.context===context+':'+inputMode)return;
- tools.dataset.context=context+':'+inputMode;tools.replaceChildren();
+ if(tools.dataset.context===context+':'+inputMode+':'+smallKanaMode)return;
+ tools.dataset.context=context+':'+inputMode+':'+smallKanaMode;tools.replaceChildren();
  const note=text=>{const p=document.createElement('p');p.className='hint';p.textContent=text;tools.append(p);};
  if(!editable){renderDrawing(tools,false);return;}
  if(inputMode==='keyboard'){note('文章欄をタップして、キーボードでじぶんのことばをかこう。');}
  if(inputMode==='kana'){
-  note('じぶんの ことばを 1もじずつ タップしよう。文字の位置は ← → でかえられるよ。');
+  note(smallKanaMode?'小さい字モード：ぁ ぃ ぅ ぇ ぉ っ ゃ ゅ ょ ゎ を入力できるよ。':'じぶんの ことばを 1もじずつ タップしよう。文字の位置は ← → でかえられるよ。');
   const grid=document.createElement('div');grid.className='kana-grid';
   const kanaRows=['あいうえお','かきくけこ','さしすせそ','たちつてと','なにぬねの','はひふへほ','まみむめも','や ゆ よ','らりるれろ','わ を ん'];
   for(let vowel=0;vowel<5;vowel++)for(const row of kanaRows){const ch=row[vowel];
    if(ch===' '){grid.append(document.createElement('span'));continue;}
-   grid.append(button(ch,()=>insertKana(ch)));
+   const letter=smallKanaMode?(smallKanaMap[ch]||ch):ch;const key=button(letter,()=>insertKana(letter));if(smallKanaMode&&smallKanaMap[ch]){key.className='small-kana';key.setAttribute('aria-label','小さい '+letter);}grid.append(key);
   }tools.append(grid);
   const row=document.createElement('div');row.className='kana-actions';
-  for(const [label,action]of [['゛゜',()=>transformKana('voice')],['小さい字',()=>transformKana('small')],['、',()=>insertKana('、')],['。',()=>insertKana('。')],['ー',()=>insertKana('ー')],['あける',()=>insertKana(' ')],['←',()=>{const n=Math.max(0,field.selectionStart-1);field.setSelectionRange(n,n);}],['→',()=>{const n=Math.min(field.value.length,field.selectionStart+1);field.setSelectionRange(n,n);}],['1もじけす',()=>insertKana('',true)]])row.append(button(label,action));
+  for(const [label,action]of [['゛゜',()=>transformKana('voice')],[smallKanaMode?'小さい字 ON':'小さい字 OFF',()=>{smallKanaMode=!smallKanaMode;renderInputTools();}],['、',()=>insertKana('、')],['。',()=>insertKana('。')],['ー',()=>insertKana('ー')],['あける',()=>insertKana(' ')],['←',()=>{const n=Math.max(0,field.selectionStart-1);field.setSelectionRange(n,n);}],['→',()=>{const n=Math.min(field.value.length,field.selectionStart+1);field.setSelectionRange(n,n);}],['1もじけす',()=>insertKana('',true)]]){const key=button(label,action);if(label.startsWith('小さい字')){key.setAttribute('aria-pressed',String(smallKanaMode));key.className='small-mode';}row.append(key);}
   tools.append(row);
  }
 }
