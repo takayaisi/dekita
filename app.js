@@ -5,9 +5,15 @@ const initial=()=>({version:1,pin:null,children:[{name:'9さい',stars:0,days:{}
 function valid(s){return s&&s.version===1&&(s.pin===null||typeof s.pin==='string')&&Array.isArray(s.children)&&s.children.length===2&&s.children.every(c=>typeof c.name==='string'&&Number.isSafeInteger(c.stars)&&c.stars>=0&&(c.debt===undefined||(Number.isSafeInteger(c.debt)&&c.debt>=0))&&(c.theme===undefined||['magic','space'].includes(c.theme))&&(c.snapshots===undefined||(c.snapshots&&typeof c.snapshots==='object'&&!Array.isArray(c.snapshots)&&Object.values(c.snapshots).every(ts=>Array.isArray(ts)&&ts.length<=30&&ts.every(t=>t&&typeof t.id==='string'&&typeof t.title==='string'&&typeof t.emoji==='string'))))&&(c.notes===undefined||(c.notes&&typeof c.notes==='object'&&!Array.isArray(c.notes)&&Object.entries(c.notes).every(([k,v])=>/^\d{4}-\d{2}-\d{2}$/.test(k)&&typeof v==='string'&&v.length<=200)))&&(c.drawings===undefined||(c.drawings&&typeof c.drawings==='object'&&!Array.isArray(c.drawings)&&Object.values(c.drawings).every(lines=>Array.isArray(lines)&&lines.flat().length<=3000&&lines.every(line=>Array.isArray(line)&&line.every(p=>Array.isArray(p)&&p.length===2&&p.every(n=>Number.isFinite(n)&&n>=0&&n<=600))))))&&(c.pokemon===undefined||(c.pokemon&&typeof c.pokemon==='object'&&!Array.isArray(c.pokemon)&&Object.entries(c.pokemon).every(([d,id])=>/^\d{4}-\d{2}-\d{2}$/.test(d)&&Number.isInteger(id)&&id>=1&&id<=151)))&&c.days&&typeof c.days==='object'&&!Array.isArray(c.days)&&Object.values(c.days).every(d=>Array.isArray(d)&&d.every(x=>typeof x==='string')))&&(s.schoolHolidays===undefined||(Array.isArray(s.schoolHolidays)&&s.schoolHolidays.every(d=>typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d))))&&Array.isArray(s.tasks)&&s.tasks.length<=60&&s.tasks.every(t=>typeof t.id==='string'&&typeof t.title==='string'&&typeof t.emoji==='string'&&(t.owner===undefined||t.owner===0||t.owner===1))&&new Set(s.tasks.map(t=>t.id)).size===s.tasks.length&&typeof s.reward==='string'&&Number.isInteger(s.cost)&&s.cost>=1&&s.cost<=999;}
 const eightTasks=[['👕','あさ おきてすぐ おきがえ'],['🪥','はみがき'],['🎹','ピアノの れんしゅう'],['📚','しゅくだい'],['🧸','おかたづけ']];
 function addYoungerPiano(data){
+ if(!data.kindergartenRevision){
+  for(const task of data.tasks)if(task.owner===1&&task.weekdaysOnly&&task.title==='じかんどおりに がっこうに いけた')task.title='じかんどおりに ようちえんに いけた';
+  const snapshot=data.children[1].snapshots?.[day()];if(snapshot)for(const task of snapshot)if(task.weekdaysOnly&&task.title==='じかんどおりに がっこうに いけた')task.title='じかんどおりに ようちえんに いけた';
+  data.kindergartenRevision=1;
+ }
+
  if(!data.schoolTimeRevision){
   for(let owner=0;owner<2;owner++){
-   const task={id:uid(),title:'じかんどおりに がっこうに いけた',emoji:'🏫',owner,weekdaysOnly:true};data.tasks.push(task);
+   const task={id:uid(),title:owner===1?'じかんどおりに ようちえんに いけた':'じかんどおりに がっこうに いけた',emoji:'🏫',owner,weekdaysOnly:true};data.tasks.push(task);
    const snapshot=data.children[owner].snapshots?.[day()];if(snapshot&&schoolDay(day(),data))snapshot.push(structuredClone(task));
   }
   data.schoolTimeRevision=1;
@@ -219,7 +225,7 @@ $('settings').onclick=()=>{unlocked=true;$('editor').hidden=false;fillEditor();$
 $('close').onclick=()=>$('parent').close();
 $('parent').addEventListener('close',()=>{unlocked=false;});
 function renderSchoolHoliday(){
- let label=$('schoolHolidayLabel');if(!label){label=document.createElement('label');label.id='schoolHolidayLabel';const input=document.createElement('input');input.type='checkbox';input.id='schoolHoliday';input.onchange=()=>{state.schoolHolidays||=[];state.schoolHolidays=state.schoolHolidays.filter(d=>d!==day());if(input.checked)state.schoolHolidays.push(day());for(let i=0;i<2;i++)state.children[i].snapshots[day()]=structuredClone(scheduledTasks(i,day()));save();render();};label.append(input,document.createTextNode(' きょうは がっこう おやすみ（２人とも）'));$('taskEditor').after(label);}
+ let label=$('schoolHolidayLabel');if(!label){label=document.createElement('label');label.id='schoolHolidayLabel';const input=document.createElement('input');input.type='checkbox';input.id='schoolHoliday';input.onchange=()=>{state.schoolHolidays||=[];state.schoolHolidays=state.schoolHolidays.filter(d=>d!==day());if(input.checked)state.schoolHolidays.push(day());for(let i=0;i<2;i++)state.children[i].snapshots[day()]=structuredClone(scheduledTasks(i,day()));save();render();};label.append(input,document.createTextNode(' きょうは がっこう・ようちえん おやすみ（２人とも）'));$('taskEditor').after(label);}
  $('schoolHoliday').checked=!!state.schoolHolidays?.includes(day());
 }
 function fillEditor(){renderSchoolHoliday();draft=structuredClone(state.tasks.filter(t=>t.owner===selected));$('name0').value=state.children[0].name;$('name1').value=state.children[1].name;$('rewardInput').value=state.reward;$('cost').value=state.cost;for(let i=0;i<2;i++)$('theme'+i).value=state.children[i].theme;renderEditor();exchangeInfo();$('taskEditor').previousElementSibling.textContent=state.children[selected].name+'の 毎日やること';}
