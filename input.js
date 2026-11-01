@@ -3,7 +3,7 @@ let inputMode='kana',smallKanaMode=false;
 const smallKanaMap={'あ':'ぁ','い':'ぃ','う':'ぅ','え':'ぇ','お':'ぉ','つ':'っ','や':'ゃ','ゆ':'ゅ','よ':'ょ','わ':'ゎ'};
 const modes=[['kana','あ ひらがな'],['keyboard','⌨ キーボード']];
 function insertKana(text,back=false){
- if(selected!==0||viewDay()!==day())return;
+ if(viewDay()!==day())return;
  const field=$('reflectionText'),a=field.selectionStart??field.value.length,b=field.selectionEnd??a;
  const start=back&&a===b?Math.max(0,a-1):a;
  const value=field.value.slice(0,start)+(back?'':text)+field.value.slice(b);
@@ -19,8 +19,9 @@ function transformKana(kind){
 }
 function renderInputTools(){
  const editable=viewDay()===day(),context=selected+':'+viewDay();
+ if(selected===1)inputMode='kana';
  $('inputModes').hidden=!editable;
- $('inputModes').replaceChildren(...modes.map(([key,label])=>{const b=button(label,()=>{inputMode=key;renderReflection();});b.setAttribute('aria-pressed',String(inputMode===key));return b;}));
+ $('inputModes').replaceChildren(...modes.filter(([key])=>selected===0||key==='kana').map(([key,label])=>{const b=button(label,()=>{inputMode=key;renderReflection();});b.setAttribute('aria-pressed',String(inputMode===key));return b;}));
  const field=$('reflectionText');field.readOnly=!editable||inputMode==='kana';
  const tools=$('inputTools');
  if(tools.dataset.context===context+':'+inputMode+':'+smallKanaMode)return;
