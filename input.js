@@ -9,7 +9,7 @@ function insertKana(text,back=false){
  const value=field.value.slice(0,start)+(back?'':text)+field.value.slice(b);
  if(value.length>200)return;
  field.value=value;field.setSelectionRange(start+(back?0:text.length),start+(back?0:text.length));
- const ok=storeReflection(value);if(ok&&typeof playSound==='function')playSound('kana');$('reflectionCount').textContent=value.length+' / 200';$('reflectionStatus').textContent=ok?'ほぞんしたよ ✓':'保存できませんでした。';
+ const ok=storeReflection(value);if(ok&&typeof playSound==='function')playSound('kana');$('reflectionCount').textContent=value.length+' / 200';$('reflectionStatus').textContent=ok?ageText('ほぞんしたよ ✓'):'保存できませんでした。';
 }
 function transformKana(kind){
  const field=$('reflectionText'),p=field.selectionStart;if(!p)return;
@@ -27,9 +27,9 @@ function renderInputTools(){
  tools.dataset.context=context+':'+inputMode+':'+smallKanaMode;tools.replaceChildren();
  const note=text=>{const p=document.createElement('p');p.className='hint';p.textContent=text;tools.append(p);};
  if(!editable){renderDrawing(tools,false);return;}
- if(inputMode==='keyboard'){note('文章欄をタップして、キーボードでじぶんのことばをかこう。');}
+ if(inputMode==='keyboard'){note(ageText('文章欄をタップして、キーボードでじぶんのことばをかこう。'));}
  if(inputMode==='kana'){
-  note(smallKanaMode?'小さい字モード：ぁ ぃ ぅ ぇ ぉ っ ゃ ゅ ょ ゎ を入力できるよ。':'じぶんの ことばを 1もじずつ タップしよう。文字の位置は ← → でかえられるよ。');
+  note(smallKanaMode?'小さい字モード：ぁ ぃ ぅ ぇ ぉ っ ゃ ゅ ょ ゎ を入力できるよ。':ageText('じぶんの ことばを 1もじずつ タップしよう。文字の位置は ← → でかえられるよ。'));
   const grid=document.createElement('div');grid.className='kana-grid';
   const kanaRows=['あいうえお','かきくけこ','さしすせそ','たちつてと','なにぬねの','はひふへほ','まみむめも','や ゆ よ','らりるれろ','わ を ん'];
   for(let vowel=0;vowel<5;vowel++)for(const row of kanaRows){const ch=row[vowel];
@@ -37,7 +37,7 @@ function renderInputTools(){
    const letter=smallKanaMode?(smallKanaMap[ch]||ch):ch;const key=button(letter,()=>insertKana(letter));if(smallKanaMode&&smallKanaMap[ch]){key.className='small-kana';key.setAttribute('aria-label','小さい '+letter);}grid.append(key);
   }tools.append(grid);
   const row=document.createElement('div');row.className='kana-actions';
-  for(const [label,action]of [['゛゜',()=>transformKana('voice')],[smallKanaMode?'小さい字 ON':'小さい字 OFF',()=>{smallKanaMode=!smallKanaMode;renderInputTools();}],['、',()=>insertKana('、')],['。',()=>insertKana('。')],['ー',()=>insertKana('ー')],['あける',()=>insertKana(' ')],['←',()=>{const n=Math.max(0,field.selectionStart-1);field.setSelectionRange(n,n);}],['→',()=>{const n=Math.min(field.value.length,field.selectionStart+1);field.setSelectionRange(n,n);}],['1もじけす',()=>insertKana('',true)]]){const key=button(label,action);if(label.startsWith('小さい字')){key.setAttribute('aria-pressed',String(smallKanaMode));key.className='small-mode';}row.append(key);}
+  for(const [label,action]of [['゛゜',()=>transformKana('voice')],[smallKanaMode?'小さい字 ON':'小さい字 OFF',()=>{smallKanaMode=!smallKanaMode;renderInputTools();}],['、',()=>insertKana('、')],['。',()=>insertKana('。')],['ー',()=>insertKana('ー')],['あける',()=>insertKana(' ')],['←',()=>{const n=Math.max(0,field.selectionStart-1);field.setSelectionRange(n,n);}],['→',()=>{const n=Math.min(field.value.length,field.selectionStart+1);field.setSelectionRange(n,n);}],[ageText('1もじけす'),()=>insertKana('',true)]]){const key=button(label,action);if(label.startsWith('小さい字')){key.setAttribute('aria-pressed',String(smallKanaMode));key.className='small-mode';}row.append(key);}
   tools.append(row);
  }
 }
@@ -50,10 +50,10 @@ function renderDrawing(container,editable){
  redraw();if(!editable)return;
  let active=null,pointer=null;
  function point(e){const r=canvas.getBoundingClientRect();return [Math.max(0,Math.min(600,(e.clientX-r.left)*600/r.width)),Math.max(0,Math.min(360,(e.clientY-r.top)*360/r.height))];}
- function persist(){if(selected!==0||date!==day()||viewDay()!==date)return;child.drawings||={};if(strokes.length)child.drawings[date]=strokes;else delete child.drawings[date];const ok=save();$('reflectionStatus').textContent=ok?'てがきを ほぞんしたよ ✓':'保存できませんでした。';}
+ function persist(){if(selected!==0||date!==day()||viewDay()!==date)return;child.drawings||={};if(strokes.length)child.drawings[date]=strokes;else delete child.drawings[date];const ok=save();$('reflectionStatus').textContent=ok?ageText('てがきを ほぞんしたよ ✓'):'保存できませんでした。';}
  canvas.onpointerdown=e=>{e.preventDefault();if(active||selected!==0||viewDay()!==day())return;if(strokes.flat().length>=3000){$('reflectionStatus').textContent='この日の手書きがいっぱいです。少し消してください。';return;}pointer=e.pointerId;canvas.setPointerCapture(pointer);active=[point(e)];strokes.push(active);redraw();};
  canvas.onpointermove=e=>{e.preventDefault();if(!active||pointer!==e.pointerId)return;if(strokes.flat().length<3000)active.push(point(e));redraw();};
  canvas.onpointerup=canvas.onpointercancel=e=>{if(e.pointerId!==pointer)return;active=null;pointer=null;persist();};
- const undo=button('ひとふで もどす',()=>{strokes.pop();redraw();persist();});container.append(undo,button('てがきを ほぞん',persist));
+ const undo=button('ひとふで もどす',()=>{strokes.pop();redraw();persist();});container.append(undo,button(ageText('てがきを ほぞん'),persist));
 }
 renderReflection();
