@@ -1,5 +1,5 @@
-const CACHE='dekita-v29';
-const FILES=['./','./index.html','./style.css?v=29','./age-text.js?v=29','./app.js?v=29','./input.js?v=29','./pokemon-data.js?v=21','./games.js?v=27','./differences.js?v=29','./icon.svg','./apple-touch-icon.png','./manifest.webmanifest'];
+const CACHE='dekita-v30';
+const FILES=['./','./index.html','./style.css?v=30','./age-text.js?v=30','./app.js?v=29','./input.js?v=29','./pokemon-data.js?v=21','./games.js?v=27','./differences.js?v=30','./icon.svg','./apple-touch-icon.png','./manifest.webmanifest'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES))));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('dekita-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('message',e=>{if(e.data==='activate')self.skipWaiting();});

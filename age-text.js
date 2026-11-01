@@ -35,7 +35,7 @@ function renderAgeLabels() {
  const selectors = ['.brand','#todayView','#historyView','#todayButton','#backToday',
   '.hero p:not(.eyebrow)','.reward .eyebrow','.reflection .eyebrow','.reflection-label',
   '#openDifferences','#closeDifferences','#differenceGame>p','#differenceGame label',
-  '#differenceLevel option','#differenceHint','#differenceReset','#differenceNext','footer'];
+  '#differenceLevel option','#differenceReset','#differenceNext','footer'];
  for (const selector of selectors) for (const host of document.querySelectorAll(selector)) {
   const walker=document.createTreeWalker(host,NodeFilter.SHOW_TEXT);
   let node;
