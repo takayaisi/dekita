@@ -5,6 +5,21 @@ const initial=()=>({version:1,pin:null,children:[{name:'9さい',stars:0,days:{}
 function valid(s){return s&&s.version===1&&(s.pin===null||typeof s.pin==='string')&&Array.isArray(s.children)&&s.children.length===2&&s.children.every(c=>typeof c.name==='string'&&Number.isSafeInteger(c.stars)&&c.stars>=0&&(c.debt===undefined||(Number.isSafeInteger(c.debt)&&c.debt>=0))&&(c.theme===undefined||['magic','space'].includes(c.theme))&&(c.snapshots===undefined||(c.snapshots&&typeof c.snapshots==='object'&&!Array.isArray(c.snapshots)&&Object.values(c.snapshots).every(ts=>Array.isArray(ts)&&ts.length<=30&&ts.every(t=>t&&typeof t.id==='string'&&typeof t.title==='string'&&typeof t.emoji==='string'))))&&(c.notes===undefined||(c.notes&&typeof c.notes==='object'&&!Array.isArray(c.notes)&&Object.entries(c.notes).every(([k,v])=>/^\d{4}-\d{2}-\d{2}$/.test(k)&&typeof v==='string'&&v.length<=200)))&&(c.drawings===undefined||(c.drawings&&typeof c.drawings==='object'&&!Array.isArray(c.drawings)&&Object.values(c.drawings).every(lines=>Array.isArray(lines)&&lines.flat().length<=3000&&lines.every(line=>Array.isArray(line)&&line.every(p=>Array.isArray(p)&&p.length===2&&p.every(n=>Number.isFinite(n)&&n>=0&&n<=600))))))&&(c.pokemon===undefined||(c.pokemon&&typeof c.pokemon==='object'&&!Array.isArray(c.pokemon)&&Object.entries(c.pokemon).every(([d,id])=>/^\d{4}-\d{2}-\d{2}$/.test(d)&&Number.isInteger(id)&&id>=1&&id<=151)))&&c.days&&typeof c.days==='object'&&!Array.isArray(c.days)&&Object.values(c.days).every(d=>Array.isArray(d)&&d.every(x=>typeof x==='string')))&&(s.schoolHolidays===undefined||(Array.isArray(s.schoolHolidays)&&s.schoolHolidays.every(d=>typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d))))&&Array.isArray(s.tasks)&&s.tasks.length<=60&&s.tasks.every(t=>typeof t.id==='string'&&typeof t.title==='string'&&typeof t.emoji==='string'&&(t.owner===undefined||t.owner===0||t.owner===1))&&new Set(s.tasks.map(t=>t.id)).size===s.tasks.length&&typeof s.reward==='string'&&Number.isInteger(s.cost)&&s.cost>=1&&s.cost<=999;}
 const eightTasks=[['👕','あさ おきてすぐ おきがえ'],['🪥','はみがき'],['🎹','ピアノの れんしゅう'],['📚','しゅくだい'],['🧸','おかたづけ']];
 function addYoungerPiano(data){
+ if(!data.youngerEnglishRevision){
+  if(!data.tasks.some(t=>t.owner===1&&/えいご|英語/.test(t.title))){
+   const task={id:uid(),title:'えいご',emoji:'🔤',owner:1};data.tasks.push(task);
+   const snapshot=data.children[1].snapshots?.[day()];if(snapshot)snapshot.push(structuredClone(task));
+  }
+  data.youngerEnglishRevision=1;
+ }
+ if(!data.youngerHealthyDrinkRevision){
+  const title='いっぱいからだにいいのみものをのんだ';
+  if(!data.tasks.some(t=>t.owner===1&&t.title===title)){
+   const task={id:uid(),title,emoji:'🥛',owner:1};data.tasks.push(task);
+   const snapshot=data.children[1].snapshots?.[day()];if(snapshot)snapshot.push(structuredClone(task));
+  }
+  data.youngerHealthyDrinkRevision=1;
+ }
  if(!data.kindergartenRevision){
   for(const task of data.tasks)if(task.owner===1&&task.weekdaysOnly&&task.title==='じかんどおりに がっこうに いけた')task.title='じかんどおりに ようちえんに いけた';
   const snapshot=data.children[1].snapshots?.[day()];if(snapshot)for(const task of snapshot)if(task.weekdaysOnly&&task.title==='じかんどおりに がっこうに いけた')task.title='じかんどおりに ようちえんに いけた';
